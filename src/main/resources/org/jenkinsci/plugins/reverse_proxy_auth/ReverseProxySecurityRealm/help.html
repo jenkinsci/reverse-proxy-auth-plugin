@@ -1,0 +1,22 @@
+<div>
+    This setup assumes that you have a front-end reverse proxy that performs authentication,
+    which sets the authenticated user name as an HTTP header and pass it on to Jenkins.
+
+    <p>
+    According to <a href="http://www.ruby-forum.com/topic/83067">this thread</a> and
+    <a href="http://old.nabble.com/Forcing-a-proxied-host-to-generate-REMOTE_USER-td2911573.html#a2914465">this thread</a>,
+    Apache configuration to do this would something like this:
+
+<pre>
+# prevent the client from setting this header
+RequestHeader unset X-Forwarded-User
+
+RewriteEngine On
+# see the Apache documentation on why this has to be lookahead
+RewriteCond %{LA-U:REMOTE_USER} (.+)
+# this actually doesn't rewrite anything. what we do here is to set RU to the match above
+RewriteRule .* - [E=RU:%1]
+RequestHeader set X-Forwarded-User %{RU}e
+</pre>
+    
+</div>
