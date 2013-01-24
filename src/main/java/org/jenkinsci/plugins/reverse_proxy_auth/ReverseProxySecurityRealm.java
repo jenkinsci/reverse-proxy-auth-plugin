@@ -110,8 +110,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
                 String username = r.getHeader(header);
 
-                String group = r.getHeader(headerGroups);
-                /* String group = "GROUPS"; */ /* BUG - At the first time, headerGroups in undefined ?!? */
+                String groups = r.getHeader(headerGroups);
+                /* String groups = "GROUPS"; */ /* BUG - At the first time, headerGroups in undefined ?!? */
  
                 Authentication a;
 
@@ -121,9 +121,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		    List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
 		    authorities.add(AUTHENTICATED_AUTHORITY);
 
-		    if (group!=null) {		    
-			StringTokenizer tokenizer = new StringTokenizer(group, headerGroupsDelimiter);
-			/* StringTokenizer tokenizer = new StringTokenizer(group, ","); */ /* BUG At the first time, headerGroupsDelimiter is undefined ?!? */
+		    if (groups!=null) {		    
+			StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
+			/* StringTokenizer tokenizer = new StringTokenizer(groups, ","); */ /* BUG At the first time, headerGroupsDelimiter is undefined ?!? */
 			while (tokenizer.hasMoreTokens()) {
 			    final String token = tokenizer.nextToken().trim();
 			    String[] args = new String[] { token, username };
