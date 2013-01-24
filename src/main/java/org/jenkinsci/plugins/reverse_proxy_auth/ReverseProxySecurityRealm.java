@@ -56,8 +56,6 @@ import java.util.logging.Logger;
 
 import org.apache.commons.lang.StringUtils;
 
-import java.io.*; /* write debug */
-
 /**
  * @author Kohsuke Kawaguchi
  */
@@ -126,7 +124,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		    if (group!=null) {		    
 			StringTokenizer tokenizer = new StringTokenizer(group, headerGroupsDelimiter);
 			/* StringTokenizer tokenizer = new StringTokenizer(group, ","); */ /* BUG At the first time, headerGroupsDelimiter is undefined ?!? */
-			LOGGER.log(Level.SEVERE, "granting: granting: dofilter group");
 			while (tokenizer.hasMoreTokens()) {
 			    final String token = tokenizer.nextToken().trim();
 			    String[] args = new String[] { token, username };
