@@ -30,6 +30,7 @@ import hudson.security.SecurityRealm;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
@@ -47,15 +48,35 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
+import java.util.StringTokenizer;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import org.apache.commons.lang.StringUtils;
+
 /**
  * @author Kohsuke Kawaguchi
  */
 public class ReverseProxySecurityRealm extends SecurityRealm {
+    private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
+
     private final String header;
+    private final String headerGroups;
+    private final String headerGroupsDelimiter;
 
     @DataBoundConstructor
-    public ReverseProxySecurityRealm(String header) {
+	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
         this.header = header;
+
+        this.headerGroups = headerGroups;       
+        if (StringUtils.isBlank(this.headerGroupsDelimiter)) {
+            this.headerGroupsDelimiter = ",";
+        }
+        else {
+            this.headerGroupsDelimiter = headerGroupsDelimiter;
+        }
     }
 
     /**
@@ -63,6 +84,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
      */
     public String getHeader() {
         return header;
+    }
+
+    public String getHeaderGroups() {
+        return headerGroups;
+    }
+
+    public String getHeaderGroupsDelimiter() {
+        return headerGroupsDelimiter;
     }
 
     @Override
@@ -79,17 +108,36 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
                 HttpServletRequest r = (HttpServletRequest) request;
 
-                String v = r.getHeader(header);
-                Authentication a;
-                if (v==null) {
-                    a = Hudson.ANONYMOUS;
-                } else {
-                    a = new UsernamePasswordAuthenticationToken(v,"",new GrantedAuthority[]{SecurityRealm.AUTHENTICATED_AUTHORITY});
+                String username = r.getHeader(header);
+
+                if (headerGroups != null) {
+                    String groups = r.getHeader(headerGroups);
+ 
+                    Authentication a;
+
+	            if (username==null) {
+                        a = Hudson.ANONYMOUS;
+                    } else {
+		        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+		        authorities.add(AUTHENTICATED_AUTHORITY);
+
+		        if (groups!=null) {		    
+			    StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
+			    while (tokenizer.hasMoreTokens()) {
+			        final String token = tokenizer.nextToken().trim();
+			        String[] args = new String[] { token, username };
+			        LOGGER.log(Level.FINE, "granting: {0} to {1}", args);
+			        authorities.add(new GrantedAuthorityImpl(token));
+			    }
+		        }
+
+                        a = new UsernamePasswordAuthenticationToken(username,"", authorities.toArray(new GrantedAuthority[0]));
+                    }
+
+                    SecurityContextHolder.getContext().setAuthentication(a);
+
+                    chain.doFilter(request,response);
                 }
-
-                SecurityContextHolder.getContext().setAuthentication(a);
-
-                chain.doFilter(request,response);
             }
 
             public void destroy() {
