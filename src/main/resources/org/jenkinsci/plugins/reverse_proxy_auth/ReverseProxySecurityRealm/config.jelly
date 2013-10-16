@@ -29,7 +29,7 @@ THE SOFTWARE.
     <f:textbox field="headerGroups" default="X-Forwarded-Groups" />
   </f:entry>
   <f:entry title="${%HeaderGroupsDelimiter Name}">
-    <f:textbox field="headerGroupsDelimiter" default="," />
+    <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
   <j:if test="${uras != null}"> <!-- 1.495+ -->

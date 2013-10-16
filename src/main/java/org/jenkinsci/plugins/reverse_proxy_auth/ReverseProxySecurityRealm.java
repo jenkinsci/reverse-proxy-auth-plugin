@@ -109,8 +109,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                 HttpServletRequest r = (HttpServletRequest) request;
 
                 String username = r.getHeader(header);
+                LOGGER.log(Level.INFO, "USER: {0}", new String[]{username});
 
                 if (headerGroups != null) {
+                    LOGGER.log(Level.INFO, "GROUPS: {0}", new String[]{headerGroups});
                     String groups = r.getHeader(headerGroups);
  
                     Authentication a;
@@ -121,17 +123,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
 		        authorities.add(AUTHENTICATED_AUTHORITY);
 
-		        if (groups!=null) {		    
+		        if (groups != null) {		    
 			    StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
 			    while (tokenizer.hasMoreTokens()) {
 			        final String token = tokenizer.nextToken().trim();
 			        String[] args = new String[] { token, username };
-			        LOGGER.log(Level.FINE, "granting: {0} to {1}", args);
+			        LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
 			        authorities.add(new GrantedAuthorityImpl(token));
 			    }
 		        }
 
-                        a = new UsernamePasswordAuthenticationToken(username,"", authorities.toArray(new GrantedAuthority[0]));
+                        a = new UsernamePasswordAuthenticationToken(username, "", authorities.toArray(new GrantedAuthority[0]));
                     }
 
                     SecurityContextHolder.getContext().setAuthentication(a);
