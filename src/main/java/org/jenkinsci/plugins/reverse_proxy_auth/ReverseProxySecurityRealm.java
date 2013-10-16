@@ -64,7 +64,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     private final String header;
     private final String headerGroups;
-    private final String headerGroupsDelimiter = "|";
+    private final String headerGroupsDelimiter;
 
     @DataBoundConstructor
 	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
@@ -73,6 +73,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
         this.headerGroups = headerGroups;       
         if (!StringUtils.isBlank(headerGroupsDelimiter)) {
             this.headerGroupsDelimiter = headerGroupsDelimiter;
+        } else {
+            this.headerGroupsDelimiter = "|";
         }
     }
 
