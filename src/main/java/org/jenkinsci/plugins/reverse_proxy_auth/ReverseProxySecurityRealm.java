@@ -64,17 +64,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     private final String header;
     private final String headerGroups;
-    private final String headerGroupsDelimiter;
+    private final String headerGroupsDelimiter = "|";
 
     @DataBoundConstructor
 	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
         this.header = header;
 
         this.headerGroups = headerGroups;       
-        if (StringUtils.isBlank(this.headerGroupsDelimiter)) {
-            this.headerGroupsDelimiter = ",";
-        }
-        else {
+        if (!StringUtils.isBlank(headerGroupsDelimiter)) {
             this.headerGroupsDelimiter = headerGroupsDelimiter;
         }
     }
@@ -109,10 +106,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                 HttpServletRequest r = (HttpServletRequest) request;
 
                 String username = r.getHeader(header);
-                LOGGER.log(Level.INFO, "USER: {0}", new String[]{username});
+                //LOGGER.log(Level.INFO, "USER: {0}", new String[]{username});
 
                 if (headerGroups != null) {
-                    LOGGER.log(Level.INFO, "GROUPS: {0}", new String[]{headerGroups});
+                    //LOGGER.log(Level.INFO, "GROUPS: {0}", new String[]{headerGroups});
                     String groups = r.getHeader(headerGroups);
  
                     Authentication a;
@@ -128,7 +125,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			    while (tokenizer.hasMoreTokens()) {
 			        final String token = tokenizer.nextToken().trim();
 			        String[] args = new String[] { token, username };
-			        LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
+			        //LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
 			        authorities.add(new GrantedAuthorityImpl(token));
 			    }
 		        }
