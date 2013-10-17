@@ -31,6 +31,12 @@ THE SOFTWARE.
   <f:entry title="${%HeaderGroupsDelimiter Name}">
     <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
+  <f:entry title="${%Group search base}">
+    <f:textbox field="groupSearchBase" default="" />
+  </f:entry>
+  <f:entry title="${%root DN}">
+    <f:textbox field="dn" default="" />
+  </f:entry>
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
   <j:if test="${uras != null}"> <!-- 1.495+ -->
     <f:entry title="${%Unprotected URLs}">
