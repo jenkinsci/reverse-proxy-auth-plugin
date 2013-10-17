@@ -8,8 +8,9 @@
     Apache configuration to do this would something like this:
 
 <pre>
-# prevent the client from setting this header
+# prevent the client from setting these headers
 RequestHeader unset X-Forwarded-User
+RequestHeader unset X-Forwarded-Groups
 
 RewriteEngine On
 # see the Apache documentation on why this has to be lookahead

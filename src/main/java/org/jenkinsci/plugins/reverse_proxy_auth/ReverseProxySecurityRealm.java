@@ -30,6 +30,7 @@ import hudson.security.SecurityRealm;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
@@ -46,23 +47,35 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.StringTokenizer;
 
 /**
  * @author Kohsuke Kawaguchi
  */
 public class ReverseProxySecurityRealm extends SecurityRealm {
-    private final String header;
+    private final String userHeader;
+    private final String groupsHeader;
 
     @DataBoundConstructor
-    public ReverseProxySecurityRealm(String header) {
-        this.header = header;
+    public ReverseProxySecurityRealm(String userHeader,
+                                     String groupsHeader) {
+        this.userHeader = userHeader;
+        this.groupsHeader = groupsHeader;
     }
 
     /**
-     * Name of the HTTP header to look at.
+     * Name of the HTTP user header to look at.
      */
-    public String getHeader() {
-        return header;
+    public String getUserHeader() {
+        return userHeader;
+    }
+    
+    /**
+     * Name of the HTTP groups header to look at.
+     */
+    public String getUserGroups() {
+        return groupsHeader;
     }
 
     @Override
@@ -79,12 +92,23 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
                 HttpServletRequest r = (HttpServletRequest) request;
 
-                String v = r.getHeader(header);
+                String u = r.getHeader(userHeader);
+                String g = r.getHeader(groupsHeader);
                 Authentication a;
-                if (v==null) {
+                if (u==null) {
                     a = Hudson.ANONYMOUS;
                 } else {
-                    a = new UsernamePasswordAuthenticationToken(v,"",new GrantedAuthority[]{SecurityRealm.AUTHENTICATED_AUTHORITY});
+                    ArrayList<GrantedAuthority> gAuths = new ArrayList<GrantedAuthority>();
+                    gAuths.add(AUTHENTICATED_AUTHORITY);
+                    if(g!=null) {
+                        StringTokenizer strTok = new StringTokenizer(g, ",");
+                        if(strTok!=null) {
+                            while(strTok.hasMoreElements()) {
+                                gAuths.add(new GrantedAuthorityImpl(strTok.nextToken().trim()));
+                            }
+                        }
+                    }
+                    a = new UsernamePasswordAuthenticationToken(u,"",gAuths.toArray(new GrantedAuthority[]{}));
                 }
 
                 SecurityContextHolder.getContext().setAuthentication(a);

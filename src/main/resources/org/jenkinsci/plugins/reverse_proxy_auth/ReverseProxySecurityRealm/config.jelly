@@ -22,8 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
-  <f:entry title="${%Header Name}">
-    <f:textbox field="header" default="X-Forwarded-User" />
+  <f:entry title="${%User Header Name}">
+    <f:textbox field="userHeader" default="X-Forwarded-User" />
+  </f:entry>
+  <f:entry title="${%Groups Header Name}">
+    <f:textbox field="groupsHeader" default="X-Forwarded-Groups" />
   </f:entry>
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
   <j:if test="${uras != null}"> <!-- 1.495+ -->
