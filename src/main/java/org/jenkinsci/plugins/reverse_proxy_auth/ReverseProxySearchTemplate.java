@@ -7,6 +7,9 @@ import java.util.Set;
 
 import org.acegisecurity.GrantedAuthority;
 
+/**
+ * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
+ */
 public class ReverseProxySearchTemplate {
 
 	public Set<String> executeReadOnly(ContextExecutor ce) {
@@ -19,24 +22,33 @@ public class ReverseProxySearchTemplate {
 
 			public Set<String> executeWithContext() {
 
-				Set<String> unionOfValues = new HashSet<String>();
+				Set<String> intersectionValues = new HashSet<String>();
+				Set<String> authorityValues = new HashSet<String>();
 
-				String [] groups = base.toLowerCase().split(",");
-				List<String> groupsList = Arrays.asList(groups);
+				List<String> groupsList = splitGroups(base);
+				intersectionValues.addAll(groupsList);
 				
 				for (int i = 0; i < authorities.length; i++) {
 					
 					String authority = authorities[i].getAuthority().toLowerCase();
-					if (groupsList.contains(authority)) {
-						unionOfValues.add(authority);
-					}
-
+					List<String> authorityList = splitGroups(authority);
+					
+					authorityValues.addAll(authorityList);
 				}
 
-				return unionOfValues;
+				intersectionValues.retainAll(authorityValues);
+				
+				return intersectionValues;
 			}
 		}
 		return executeReadOnly(new SingleAttributeSearchCallback());
+	}
+	
+	private List<String> splitGroups(String base) {
+		String [] groups = base.toLowerCase().split(",");
+		List<String> groupsList = Arrays.asList(groups);
+		
+		return groupsList;
 	}
 }
 
