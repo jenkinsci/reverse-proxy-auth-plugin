@@ -1,8 +1,6 @@
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.acegisecurity.GrantedAuthority;
@@ -16,39 +14,28 @@ public class ReverseProxySearchTemplate {
 		return ce.executeWithContext();
 	}
 
-	public Set<String> searchForSingleAttributeValues(final String base, final GrantedAuthority [] authorities, final String attributeName) {
+	public Set<String> searchForSingleAttributeValues(final GrantedAuthority [] authorities) {
 
 		class SingleAttributeSearchCallback implements ContextExecutor {
 
 			public Set<String> executeWithContext() {
 
-				Set<String> intersectionValues = new HashSet<String>();
 				Set<String> authorityValues = new HashSet<String>();
 
-				List<String> groupsList = splitGroups(base);
-				intersectionValues.addAll(groupsList);
-				
 				for (int i = 0; i < authorities.length; i++) {
 					
-					String authority = authorities[i].getAuthority().toLowerCase();
-					List<String> authorityList = splitGroups(authority);
+					String authority = authorities[i].getAuthority();
 					
-					authorityValues.addAll(authorityList);
+					if (authority.toUpperCase().startsWith("CN=")) {
+						String groupName = authority.substring(3, authority.indexOf(','));
+						authorityValues.add(groupName);
+					}
 				}
 
-				intersectionValues.retainAll(authorityValues);
-				
-				return intersectionValues;
+				return authorityValues;
 			}
 		}
 		return executeReadOnly(new SingleAttributeSearchCallback());
-	}
-	
-	private List<String> splitGroups(String base) {
-		String [] groups = base.toLowerCase().split(",");
-		List<String> groupsList = Arrays.asList(groups);
-		
-		return groupsList;
 	}
 }
 

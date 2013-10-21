@@ -55,6 +55,8 @@ import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.acegisecurity.userdetails.ldap.LdapUserDetailsImpl;
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthoritiesPopulator;
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.web.context.WebApplicationContext;
@@ -104,36 +106,15 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	private static final Logger LOGGER = Logger
 			.getLogger(ReverseProxySecurityRealm.class.getName());
 
-	/**
-	 * LDAP filter to look for groups by their names.
-	 * 
-	 * "{0}" is the group name as given by the user. See
-	 * http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the
-	 * syntax by example. WANTED: The specification of the syntax.
-	 */
-	public static String GROUP_SEARCH = System
-			.getProperty(
-					ReverseProxySecurityRealm.class.getName() + ".groupSearch",
-					"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
-
-	private final String header;
-	private final String headerGroups;
-	private final String headerGroupsDelimiter;
-
-	/**
-	 * Query to locate an entry that identifies the group, given the group name
-	 * string. If non-null it will override the default specified by
-	 * {@link #GROUP_SEARCH}
-	 * 
-	 * @since 1.5
-	 */
-	private final String groupSearchBase;
-	private final String dn;
-
-	private GrantedAuthority[] authorities;
+	private static Hashtable<String, GrantedAuthority[]> authContext;
 	
-	private final Hashtable<String, GrantedAuthority[]> authContext;
+	public final String header;
+	public final String headerGroups;
+	public final String headerGroupsDelimiter;
 
+	public String retrievedUsername;
+
+	public GrantedAuthority[] authorities;
 	/**
 	 * The cache configuration
 	 * 
@@ -154,10 +135,8 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	private transient Map<String, CacheEntry<Set<String>>> groupDetailsCache = null;
 
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter, String groupSearchBase, String dn) {
+	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
 		this.header = header.trim();
-		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
-		this.dn = fixEmptyAndTrim(dn);
 
 		this.headerGroups = headerGroups;
 		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
@@ -185,14 +164,6 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		return headerGroupsDelimiter;
 	}
 
-	public String getGroupSearchBase() {
-		return groupSearchBase;
-	}
-
-	public String getDn() {
-		return dn;
-	}
-
 	@Override
 	public boolean canLogOut() {
 		return false;
@@ -209,23 +180,22 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public Integer getCacheTTL() {
 		return cache == null ? null : cache.getTtl();
 	}
-
+	
 	class AddParamsToHeader extends HttpServletRequestWrapper {
-		public AddParamsToHeader(HttpServletRequest request) {
-			super(request);
-		}
+        public AddParamsToHeader(HttpServletRequest request) {
+        	super(request);
+        }
 
-		public String getHeader(String name) {
-			Object header = super.getHeader(name);
-			return (String) ((header != null) ? header : super
-					.getAttribute(name));
-		}
+        public String getHeader(String name) {
+        	Object header = super.getHeader(name);
+        	return (String) ((header != null) ? header : super.getAttribute(name));
+        }
 
-		public Enumeration getHeaderNames() {
-			List<String> names = Collections.list(super.getHeaderNames());
-			names.addAll(Collections.list(super.getAttributeNames()));
-			return Collections.enumeration(names);
-		}
+        public Enumeration getHeaderNames() {
+        	List<String> names = Collections.list(super.getHeaderNames());
+        	names.addAll(Collections.list(super.getAttributeNames()));
+        	return Collections.enumeration(names);
+        }
 	}
 
 	@Override
@@ -238,11 +208,18 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 					ServletResponse response, FilterChain chain)
 					throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
+				
+				AddParamsToHeader fake = new AddParamsToHeader(r);
+				
+				fake.setAttribute("remote_user", "wrodrigues");
+				fake.setAttribute("X-Forwarded-Groups", "CN=SBP-AMS-Everyone,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=RL_MCE,OU=Role Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-VPN,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=oneXUser,OU=SBP Security Groups,DC=sbp,DC=lan|CN=x-traffic,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_OpenAM_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_SBPResourcing_M,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=PGR_Team5,OU=Pager Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-MCE,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Intranet,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_SBP,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=COMP_SBP,OU=Company Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=mon-connect,OU=MON,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-connect,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Everyone,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_SAS_SBP_SMSToken,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-cloud,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-corpit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks-mac,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Mission_critical_engineering,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan");
 
-				String headerUsername = r.getHeader(header);
+				String headerUsername = fake.getHeader(header);
+				retrievedUsername = headerUsername;
+				
 				if (headerUsername != null) {
 					if (headerGroups != null) {
-						String groups = r.getHeader(headerGroups);
+						String groups = fake.getHeader(headerGroups);
 						
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
 						localAuthorities.add(AUTHENTICATED_AUTHORITY);
@@ -266,7 +243,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 						authContext.put(headerUsername, authorities);
 					}
 				}
-				chain.doFilter(r, response);
+				chain.doFilter(fake, response);
 			}
 
 			public void destroy() {
@@ -296,7 +273,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		proxyTemplate = new ReverseProxySearchTemplate();
 		
 		return new SecurityComponents(findBean(AuthenticationManager.class,
-				appContext), new ReverseProxyUserDetailsService(authContext));
+				appContext), new ReverseProxyUserDetailsService(appContext));
 	}
 
 	/**
@@ -339,14 +316,13 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public GroupDetails loadGroupByGroupname(String groupname)
 			throws UsernameNotFoundException, DataAccessException {
 
-		// LOGGER.log(Level.INFO, "loadGroupByGroupname ==> groupName {0}", groupname);
+		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> groupName {0}", groupname);
 
 		Set<String> cachedGroups;
 		if (cache != null) {
 			final CacheEntry<Set<String>> cached;
 			synchronized (this) {
-				cached = groupDetailsCache != null ? groupDetailsCache
-						.get(groupname) : null;
+				cached = groupDetailsCache != null ? groupDetailsCache.get(groupname) : null;
 			}
 			if (cached != null && cached.isValid()) {
 				cachedGroups = cached.getValue();
@@ -357,13 +333,13 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 			cachedGroups = null;
 		}
 
-		// TODO: obtain a DN instead so that we can obtain multiple attributes
-		// later
-		String searchBase = groupSearchBase != null ? groupSearchBase : "";
-
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		GrantedAuthority[] authorities = authContext.get(auth.getName());
+		
 		final Set<String> groups = cachedGroups != null ? cachedGroups
-				: (Set<String>) proxyTemplate.searchForSingleAttributeValues(
-						searchBase, authorities, groupname);
+				: (Set<String>) proxyTemplate.searchForSingleAttributeValues(authorities);
+		
+		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> GROUPS {0}", groups);
 
 		if (cache != null && cachedGroups == null && !groups.isEmpty()) {
 			synchronized (this) {
@@ -386,13 +362,12 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		};
 	}
 
-	public static class ReverseProxyUserDetailsService implements
-			UserDetailsService {
+	public static class ReverseProxyUserDetailsService implements UserDetailsService {
 
-		private Hashtable<String, GrantedAuthority[]> authContext;
+		private final ReverseProxyAuthoritiesPopulator authoritiesPopulator;
 
-		public ReverseProxyUserDetailsService(Hashtable<String, GrantedAuthority[]> authContext) {
-			this.authContext = authContext;
+		public ReverseProxyUserDetailsService(WebApplicationContext appContext) {
+			authoritiesPopulator = findBean(ReverseProxyAuthoritiesPopulator.class, appContext);
 		}
 
 		public ReverseProxyUserDetails loadUserByUsername(String username)
@@ -418,12 +393,14 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 					}
 				}
 				
-				GrantedAuthority[] localAuthorities = authContext.get(username);
-				
-				// LOGGER.log(Level.INFO, "loadGroupByGroupname ==> AUTHORITIES {0}", localAuthorities);
-				
 				ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
 				proxyUser.setUsername(username);
+				
+				GrantedAuthority[] contextAuthorities = authContext.get(username);
+				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(contextAuthorities, proxyUser);
+				
+				LOGGER.log(Level.INFO, "loadUserByUsername ==> AUTHORITIES {0}", localAuthorities);
+				
 				proxyUser.setAuthorities(localAuthorities);
 
 				if (securityRealm instanceof ReverseProxySecurityRealm
@@ -455,13 +432,69 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		}
 	}
 	
+	/**
+     * {@link ReverseProxyAuthoritiesPopulator} that adds the automatic 'authenticated' role.
+     */
+    public static final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReverseProxyAuthoritiesPopulator {
+
+        String rolePrefix = "ROLE_";
+        boolean convertToUpperCase = true;
+
+        public ReverseProxyAuthoritiesPopulatorImpl() {
+            super.setRolePrefix("");
+            super.setConvertToUpperCase(false);
+        }
+
+        protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
+            return Collections.singleton(AUTHENTICATED_AUTHORITY);
+        }
+
+        public void setRolePrefix(String rolePrefix) {
+            this.rolePrefix = rolePrefix;
+        }
+
+        public void setConvertToUpperCase(boolean convertToUpperCase) {
+            this.convertToUpperCase = convertToUpperCase;
+        }
+
+        /**
+         * Retrieves the group membership in two ways.
+         *
+         * We'd like to retain the original name, but we historically used to do "ROLE_GROUPNAME".
+         * So to remain backward compatible, we make the super class pass the unmodified "groupName",
+         * then do the backward compatible translation here, so that the user gets both "ROLE_GROUPNAME" and "groupName".
+         */
+        public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
+        	
+    		GrantedAuthority[] authorities = authContext.get(username);
+    		
+            Set<GrantedAuthority> names = super.getGroupMembershipRoles(authorities, username);
+
+            Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
+            groupRoles.addAll(names);
+
+            for (GrantedAuthority ga : names) {
+                String role = ga.getAuthority();
+
+                // backward compatible name mangling
+                if (convertToUpperCase) {
+                    role = role.toUpperCase();
+                }
+                groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
+            }
+
+            return groupRoles;
+        }
+    }
+	
 	public static class ReverseProxyUserDetails implements UserDetails {
+
+		private static final long serialVersionUID = 8070729070782792157L;
 
 		private static Attributes attributes = new BasicAttributes();
 
 		private GrantedAuthority[] authorities;
 		private String username;
-		private String dn;
 
 		public GrantedAuthority[] getAuthorities() {
 			return authorities;
