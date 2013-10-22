@@ -1,9 +1,9 @@
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import org.acegisecurity.GrantedAuthority;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
@@ -14,25 +14,12 @@ public class ReverseProxySearchTemplate {
 		return ce.executeWithContext();
 	}
 
-	public Set<String> searchForSingleAttributeValues(final GrantedAuthority [] authorities) {
+	public Set<String> searchForSingleAttributeValues(final SearchTemplate template, final GrantedAuthority [] authorities) {
 
 		class SingleAttributeSearchCallback implements ContextExecutor {
 
 			public Set<String> executeWithContext() {
-
-				Set<String> authorityValues = new HashSet<String>();
-
-				for (int i = 0; i < authorities.length; i++) {
-					
-					String authority = authorities[i].getAuthority();
-					
-					if (authority.toUpperCase().startsWith("CN=")) {
-						String groupName = authority.substring(3, authority.indexOf(','));
-						authorityValues.add(groupName);
-					}
-				}
-
-				return authorityValues;
+				return template.processAuthorities(authorities);
 			}
 		}
 		return executeReadOnly(new SingleAttributeSearchCallback());

@@ -16,6 +16,7 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 */
 
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -25,6 +26,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySecurityRealm.ReverseProxyUserDetails;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.springframework.util.Assert;
 
 
@@ -51,12 +54,15 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 
    private String rolePrefix = "ROLE_";
    private boolean convertToUpperCase = true;
+   
+   protected Hashtable<String, GrantedAuthority[]> authContext;
 
    /**
     * Constructor for group search scenarios. <tt>userRoleAttributes</tt> may still be
     * set as a property.
     */
-   public DefaultReverseProxyAuthoritiesPopulator() {
+   public DefaultReverseProxyAuthoritiesPopulator(Hashtable<String, GrantedAuthority[]> authContext) {
+	   this.authContext = authContext;
 	   reverseProxyTemplate = new ReverseProxySearchTemplate();
    }
 
@@ -80,8 +86,11 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
     * @param userDetails the user who's authorities are required
     * @return the set of roles granted to the user.
     */
-   public final GrantedAuthority[] getGrantedAuthorities(GrantedAuthority[] contextAuthorities, ReverseProxyUserDetails userDetails) {
-       Set<GrantedAuthority> roles = getGroupMembershipRoles(contextAuthorities, userDetails.getUsername());
+   public final GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
+	   
+	   String username = userDetails.getUsername();
+	   
+       Set<GrantedAuthority> roles = getGroupMembershipRoles(username);
 
        Set<GrantedAuthority> extraRoles = getAdditionalRoles(userDetails);
 
@@ -96,10 +105,14 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
        return (GrantedAuthority[]) roles.toArray(new GrantedAuthority[roles.size()]);
    }
 
-   public Set<GrantedAuthority> getGroupMembershipRoles(GrantedAuthority[] contextAuthorities, String username) {
+   public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
        Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
-       Set<String> userRoles = reverseProxyTemplate.searchForSingleAttributeValues(contextAuthorities);
+       GrantedAuthority[] contextAuthorities = authContext.get(username);
+       
+       SearchTemplate searchTemplate = new UserSearchTemplate(username);
+       
+       Set<String> userRoles = reverseProxyTemplate.searchForSingleAttributeValues(searchTemplate, contextAuthorities);
 
        if (logger.isDebugEnabled()) {
            logger.debug("Roles from search: " + userRoles);

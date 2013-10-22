@@ -40,7 +40,7 @@ import javax.naming.Context
     The 'instance' object refers to the instance of ReverseProxySecurityRealm
 */
 
-authoritiesPopulator(ReverseProxyAuthoritiesPopulatorImpl) {
+authoritiesPopulator(ReverseProxyAuthoritiesPopulatorImpl, instance.authContext) {
 }
 
 authenticator(DefaultReverseProxyAuthenticator, instance.retrievedUsername, instance.authorities) {

@@ -111,7 +111,7 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
         user.setUsername(username);
 
         // Hack for now to pass user's own authorities. Will make the full greanted authorities as a bean in the future. 
-        GrantedAuthority[] extraAuthorities = getAuthoritiesPopulator().getGrantedAuthorities(user.getAuthorities(), user);
+        GrantedAuthority[] extraAuthorities = getAuthoritiesPopulator().getGrantedAuthorities(user);
         user.setAuthorities(extraAuthorities);
 
         return user;
@@ -158,7 +158,7 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
     }
 
     private static class NullAuthoritiesPopulator implements ReverseProxyAuthoritiesPopulator {
-		public GrantedAuthority[] getGrantedAuthorities(GrantedAuthority[] contextAuthorities, ReverseProxyUserDetails userDetails) {
+		public GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
 			return new GrantedAuthority[0];
 		}
     }

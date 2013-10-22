@@ -57,6 +57,8 @@ import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.acegisecurity.userdetails.ldap.LdapUserDetailsImpl;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.web.context.WebApplicationContext;
@@ -106,8 +108,6 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	private static final Logger LOGGER = Logger
 			.getLogger(ReverseProxySecurityRealm.class.getName());
 
-	private static Hashtable<String, GrantedAuthority[]> authContext;
-	
 	public final String header;
 	public final String headerGroups;
 	public final String headerGroupsDelimiter;
@@ -115,6 +115,8 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public String retrievedUsername;
 
 	public GrantedAuthority[] authorities;
+	
+	public Hashtable<String, GrantedAuthority[]> authContext;
 	/**
 	 * The cache configuration
 	 * 
@@ -147,6 +149,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 
 		this.cache = null;
 		authContext = new Hashtable<String, GrantedAuthority[]>();
+		authorities = new GrantedAuthority[0];
 	}
 
 	/**
@@ -191,7 +194,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 					ServletResponse response, FilterChain chain)
 					throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
-
+				
 				String headerUsername = r.getHeader(header);
 				retrievedUsername = headerUsername;
 				
@@ -261,7 +264,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	protected UserDetails authenticate(String username, String password)
 			throws AuthenticationException {
 		
-		// LOGGER.log(Level.INFO, "authenticate ==> username : {0}", username);
+		LOGGER.log(Level.INFO, "authenticate ==> username : {0}", username);
 
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		return (UserDetails) auth.getPrincipal();
@@ -274,11 +277,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public UserDetails loadUserByUsername(String username)
 			throws UsernameNotFoundException, DataAccessException {
 		
-		// LOGGER.log(Level.INFO, "loadUserByUsername ==> username : {0}", username);
-		
 		UserDetails ud = getSecurityComponents().userDetails.loadUserByUsername(username);
-		
-		// LOGGER.log(Level.INFO, "loadUserByUsername ==> authorities : {0}", ud.getAuthorities());
 		
 		return ud;
 	}
@@ -296,7 +295,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 
 		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> groupName {0}", groupname);
 
-		Set<String> cachedGroups;
+		Set<String> cachedGroups = null;
 		if (cache != null) {
 			final CacheEntry<Set<String>> cached;
 			synchronized (this) {
@@ -314,8 +313,10 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		GrantedAuthority[] authorities = authContext.get(auth.getName());
 		
+		SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
+		
 		final Set<String> groups = cachedGroups != null ? cachedGroups
-				: (Set<String>) proxyTemplate.searchForSingleAttributeValues(authorities);
+				: (Set<String>) proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
 		
 		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> GROUPS {0}", groups);
 
@@ -374,8 +375,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 				ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
 				proxyUser.setUsername(username);
 				
-				GrantedAuthority[] contextAuthorities = authContext.get(username);
-				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(contextAuthorities, proxyUser);
+				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
 				
 				LOGGER.log(Level.INFO, "loadUserByUsername ==> AUTHORITIES {0}", localAuthorities);
 				
@@ -403,8 +403,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 
 				return proxyUser;
 			} catch (LdapDataAccessException e) {
-				LOGGER.log(Level.WARNING, "Failed to search LDAP for username="
-						+ username, e);
+				LOGGER.log(Level.WARNING, "Failed to search LDAP for username=" + username, e);
 				throw new UserMayOrMayNotExistException(e.getMessage(), e);
 			}
 		}
@@ -418,7 +417,9 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
         String rolePrefix = "ROLE_";
         boolean convertToUpperCase = true;
 
-        public ReverseProxyAuthoritiesPopulatorImpl() {
+        public ReverseProxyAuthoritiesPopulatorImpl(Hashtable<String, GrantedAuthority[]> authContext) {
+        	super(authContext);
+        	
             super.setRolePrefix("");
             super.setConvertToUpperCase(false);
         }
@@ -443,10 +444,8 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
          * then do the backward compatible translation here, so that the user gets both "ROLE_GROUPNAME" and "groupName".
          */
         public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
-        	
-    		GrantedAuthority[] authorities = authContext.get(username);
     		
-            Set<GrantedAuthority> names = super.getGroupMembershipRoles(authorities, username);
+            Set<GrantedAuthority> names = super.getGroupMembershipRoles(username);
 
             Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
             groupRoles.addAll(names);
