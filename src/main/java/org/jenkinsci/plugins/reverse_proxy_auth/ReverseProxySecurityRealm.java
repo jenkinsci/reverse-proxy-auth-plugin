@@ -136,7 +136,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	/**
 	 * The group details cache.
 	 */
-	private transient Map<String, CacheEntry<Set<String>>> groupDetlilsCache = null;
+	private transient Map<String, CacheEntry<Set<String>>> groupDetailsCache = null;
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
@@ -185,23 +185,6 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public Integer getCacheTTL() {
 		return cache == null ? null : cache.getTtl();
 	}
-	
-	  class AddParamsToHeader extends HttpServletRequestWrapper {
-	        public AddParamsToHeader(HttpServletRequest request) {
-	          super(request);
-	        }
-
-	        public String getHeader(String name) {
-	          Object header = super.getHeader(name);
-	          return (String) ((header != null) ? header : super.getAttribute(name));
-	        }
-
-	        public Enumeration getHeaderNames() {
-	          List<String> names = Collections.list(super.getHeaderNames());
-	          names.addAll(Collections.list(super.getAttributeNames()));
-	          return Collections.enumeration(names);
-	        }
-	  }
 
 	@Override
 	public Filter createFilter(FilterConfig filterConfig) {
@@ -213,19 +196,13 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 					ServletResponse response, FilterChain chain)
 					throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
-				
-				AddParamsToHeader fake = new AddParamsToHeader(r);
-				
-				fake.setAttribute("remote_user", "wrodrigues");
-				fake.setAttribute("X-Forwarded-Groups", "CN=SBP-AMS-Everyone,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=RL_MCE,OU=Role Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-VPN,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=oneXUser,OU=SBP Security Groups,DC=sbp,DC=lan|CN=x-traffic,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_OpenAM_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_SBPResourcing_M,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=PGR_Team5,OU=Pager Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-MCE,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Intranet,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_SBP,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=COMP_SBP,OU=Company Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=mon-connect,OU=MON,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-connect,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Everyone,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_SAS_SBP_SMSToken,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-cloud,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-corpit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks-mac,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Mission_critical_engineering,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan");
 
-
-				String headerUsername = fake.getHeader(header);
+				String headerUsername = r.getHeader(header);
 				retrievedUsername = headerUsername;
 				
 				if (headerUsername != null) {
 					if (headerGroups != null) {
-						String groups = fake.getHeader(headerGroups);
+						String groups = r.getHeader(headerGroups);
 						
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
 						localAuthorities.add(AUTHENTICATED_AUTHORITY);
@@ -261,7 +238,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 						authContext.put(headerUsername, authorities);
 					}
 				}
-				chain.doFilter(fake, response);
+				chain.doFilter(r, response);
 			}
 
 			public void destroy() {
@@ -301,8 +278,6 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	protected UserDetails authenticate(String username, String password)
 			throws AuthenticationException {
 		
-		LOGGER.log(Level.INFO, "authenticate ==> username : {0}", username);
-
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		return (UserDetails) auth.getPrincipal();
 	}
@@ -330,22 +305,20 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 	public GroupDetails loadGroupByGroupname(String groupname)
 			throws UsernameNotFoundException, DataAccessException {
 
-		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> groupName {0}", groupname);
-
 		Set<String> cachedGroups = null;
-//		if (cache != null) {
-//			final CacheEntry<Set<String>> cached;
-//			synchronized (this) {
-//				cached = groupDetailsCache != null ? groupDetailsCache.get(groupname) : null;
-//			}
-//			if (cached != null && cached.isValid()) {
-//				cachedGroups = cached.getValue();
-//			} else {
-//				cachedGroups = null;
-//			}
-//		} else {
-//			cachedGroups = null;
-//		}
+		if (cache != null) {
+			final CacheEntry<Set<String>> cached;
+			synchronized (this) {
+				cached = groupDetailsCache != null ? groupDetailsCache.get(groupname) : null;
+			}
+			if (cached != null && cached.isValid()) {
+				cachedGroups = cached.getValue();
+			} else {
+				cachedGroups = null;
+			}
+		} else {
+			cachedGroups = null;
+		}
 
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		GrantedAuthority[] authorities = authContext.get(auth.getName());
@@ -355,18 +328,16 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 		final Set<String> groups = cachedGroups != null ? cachedGroups
 				: proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
 		
-		LOGGER.log(Level.INFO, "loadGroupByGroupname ==> GROUPS {0}", groups);
-
-//		if (cache != null && cachedGroups == null && !groups.isEmpty()) {
-//			synchronized (this) {
-//				if (groupDetailsCache == null) {
-//					groupDetailsCache = new CacheMap<String, Set<String>>(
-//							cache.getSize());
-//				}
-//				groupDetailsCache.put(groupname, new CacheEntry<Set<String>>(
-//						cache.getTtl(), groups));
-//			}
-//		}
+		if (cache != null && cachedGroups == null && !groups.isEmpty()) {
+			synchronized (this) {
+				if (groupDetailsCache == null) {
+					groupDetailsCache = new CacheMap<String, Set<String>>(
+							cache.getSize());
+				}
+				groupDetailsCache.put(groupname, new CacheEntry<Set<String>>(
+						cache.getTtl(), groups));
+			}
+		}
 
 		if (groups.isEmpty())
 			throw new UsernameNotFoundException(groupname);
