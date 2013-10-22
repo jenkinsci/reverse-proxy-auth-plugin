@@ -196,7 +196,7 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 					ServletResponse response, FilterChain chain)
 					throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
-
+				
 				String headerUsername = r.getHeader(header);
 				retrievedUsername = headerUsername;
 				
@@ -230,14 +230,12 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 						}
 						
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-						
-						Authentication auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
-	
-						SecurityContextHolder.getContext().setAuthentication(auth);
-						
-						authContext.put(headerUsername, authorities);
 					}
 				}
+				Authentication auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
+				SecurityContextHolder.getContext().setAuthentication(auth);
+				authContext.put(headerUsername, authorities);
+				
 				chain.doFilter(r, response);
 			}
 
@@ -384,8 +382,6 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 				proxyUser.setUsername(username);
 				
 				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
-				
-				LOGGER.log(Level.INFO, "loadUserByUsername ==> AUTHORITIES {0}", localAuthorities);
 				
 				proxyUser.setAuthorities(localAuthorities);
 
