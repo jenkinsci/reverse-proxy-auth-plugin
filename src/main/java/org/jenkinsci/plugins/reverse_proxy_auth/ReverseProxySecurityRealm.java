@@ -244,8 +244,15 @@ public class ReverseProxySecurityRealm extends AbstractPasswordBasedSecurityReal
 						
 						SearchTemplate searchTemplate = new UserSearchTemplate(headerUsername);
 						
-						Set<String> shit = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-						authorities = shit.toArray(new GrantedAuthority[0]);
+						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
+						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
+						
+						String [] authString = foundAuthorities.toArray(new String[0]);
+						for (int i = 0; i < authString.length; i++) {
+							tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
+						}
+						
+						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
 						
 						Authentication auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
 	
