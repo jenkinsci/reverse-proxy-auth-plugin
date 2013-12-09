@@ -173,6 +173,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			public void init(FilterConfig filterConfig) throws ServletException {
 			}
 
+			@SuppressWarnings("unused")
 			public void doFilter(ServletRequest request,
 					ServletResponse response, FilterChain chain)
 							throws IOException, ServletException {
@@ -187,6 +188,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						auth = Hudson.ANONYMOUS;
 					} else {
 						String groups = r.getHeader(headerGroups);
+						LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", headerUsername);
+						LOGGER.log(Level.INFO, "USER GROUPS: {0}", groups);
 
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
 						localAuthorities.add(AUTHENTICATED_AUTHORITY);
@@ -195,10 +198,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
 							while (tokenizer.hasMoreTokens()) {
 								final String token = tokenizer.nextToken().trim();
-								// String[] args = new String[] { token,
-								// username };
-								// LOGGER.log(Level.INFO,
-								// "granting: {0} to {1}", args);
+								// String[] args = new String[] { token, username };
+								// LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
 								localAuthorities.add(new GrantedAuthorityImpl(token));
 							}
 						}
@@ -216,9 +217,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						}
 
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+						authContext.put(headerUsername, authorities);
+
 						auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
 					}
-
 					SecurityContextHolder.getContext().setAuthentication(auth);
 					chain.doFilter(r, response);
 				}
@@ -565,4 +567,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					|| !eldest.getValue().isValid();
 		}
 	}
+
+	static String headers = "CN=ALIAS-Beyond-Cupfighting,OU=ALIAS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Com,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Everyone,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Mission_critical_engineering,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=AMS-CORP-Sales,OU=AMS,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_ABW_Acceptance,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_ABW_Development,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Agresso_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_M,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Confluence_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Connect_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Coveo_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_GitHub_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Jira_User,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_SAS_SBP_SMSToken,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_SBP_TeamAdmin_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=APP_Tableau_Admin,OU=Application Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=COMP_SBP,OU=Company Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_SBP,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_SEC,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_SUM,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=CUST_TKT,OU=Customer Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_AgressoPRD_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_Confluence_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_Easy2Comply_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_Monitor247_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_Reporting_M,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_Reporting_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_SBPResourcing_M,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=DB_SBPResourcing_R,OU=Database Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=ext-eduscrum,OU=EXT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Int_Cloud,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Int_Connect,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Int_Corpit,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Int_Loodswezen,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_int_splunk,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Int_Toolkit,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_Mon_Corpit,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FMG_x_cvs_commits,OU=Functional Mailbox Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=FS_Business_BiMonthlyTeamMeetings_M,OU=Filesystem Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-abw,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-apptoolkit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-bladelogic,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-bloggers,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-cloud,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-connect,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-fixit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-greenkit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-intranet,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-knowledgemanagement,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-lead-security,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-multivers,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-recruitment,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-sbb,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-scrum,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-splunk,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-summit,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-tooling,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-vdi,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=int-WSUS-testers,OU=INT,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=itsec-jira,OU=legacy,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=oneXUser,OU=SBP Security Groups,DC=sbp,DC=lan|CN=RG_MigratedHomeDir,OU=Resource Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=RL_COM,OU=Role Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=RL_Sales,OU=Role Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=RL_WSUSTesters,OU=Role Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Citrix Users,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Citrix-ABW-Acceptance,OU=Citrix Applications,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Citrix-ABW-Development,OU=Citrix Applications,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Confluence_acc-DB-ReadOnly,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Confluence_prod-DB-ReadOnly,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-ConfluenceAdmin,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Everyone,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-IM247DB-ReadOnly,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Intranet,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-PILOT,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-ProjectManagers,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-Sales,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-SalesPrinter,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-TableauAdmin,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-TEMPLATES_1,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-TEST_HuisstijlUpdate,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-VPN-McInfra,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SBP-AMS-WSUSTesters,OU=Legacy Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SEC_ARACCAdmins,OU=Security Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=SEC_ARDEVAdmins,OU=Security Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=sme-banking,OU=SME,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-geeks-mac,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-hackalong,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-hackerspace,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-ipad,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-postsummit,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-running,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan|CN=x-swim,OU=X,OU=Distribution Groups,OU=Groups,OU=CORPIT,DC=sbp,DC=lan";
 }
