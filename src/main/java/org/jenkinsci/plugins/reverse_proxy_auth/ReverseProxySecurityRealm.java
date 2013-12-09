@@ -23,38 +23,56 @@
  */
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
-import static hudson.Util.fixEmptyAndTrim;
-import static hudson.Util.fixNull;
 import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
-import hudson.security.AbstractPasswordBasedSecurityRealm;
-import hudson.security.AuthenticationManagerProxy;
 import hudson.security.GroupDetails;
-import hudson.security.LDAPSecurityRealm;
-import hudson.security.SecurityRealm;
 import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.SecurityRealm;
 import hudson.util.spring.BeanBuilder;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.naming.directory.Attributes;
+import javax.naming.directory.BasicAttributes;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+
+import jenkins.model.Jenkins;
+
 import org.acegisecurity.Authentication;
-import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.ldap.LdapDataAccessException;
-import org.acegisecurity.ldap.LdapUserSearch;
-import org.acegisecurity.providers.ProviderManager;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.providers.ldap.LdapAuthoritiesPopulator;
-import org.acegisecurity.providers.ldap.populator.DefaultLdapAuthoritiesPopulator;
 import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
-import org.acegisecurity.userdetails.ldap.LdapUserDetailsImpl;
+import org.apache.commons.io.input.AutoCloseInputStream;
+import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
@@ -63,44 +81,6 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.web.context.WebApplicationContext;
-
-import javax.naming.directory.Attributes;
-import javax.naming.directory.BasicAttributes;
-import javax.naming.ldap.Control;
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletRequestWrapper;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import jenkins.model.Jenkins;
-
-import org.apache.commons.collections.map.LRUMap;
-import org.apache.commons.io.input.AutoCloseInputStream;
-import org.apache.commons.lang.StringUtils;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -117,7 +97,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String retrievedUsername;
 
 	public GrantedAuthority[] authorities;
-	
+
 	public Hashtable<String, GrantedAuthority[]> authContext;
 	/**
 	 * The cache configuration
@@ -139,7 +119,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	private transient Map<String, CacheEntry<Set<String>>> groupDetailsCache = null;
 
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String header, String headerGroups, String headerGroupsDelimiter) {
+	public ReverseProxySecurityRealm(String header, String headerGroups,
+			String headerGroupsDelimiter) {
 		this.header = header.trim();
 
 		this.headerGroups = headerGroups;
@@ -149,7 +130,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			this.headerGroupsDelimiter = "|";
 		}
 
-		this.cache = null;
+		cache = null;
 		authContext = new Hashtable<String, GrantedAuthority[]>();
 		authorities = new GrantedAuthority[0];
 	}
@@ -194,50 +175,53 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 			public void doFilter(ServletRequest request,
 					ServletResponse response, FilterChain chain)
-					throws IOException, ServletException {
+							throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
-				
+
 				String headerUsername = r.getHeader(header);
 				retrievedUsername = headerUsername;
-				
-				if (headerUsername != null) {
-					if (headerGroups != null) {
+
+				Authentication auth;
+				if (headerGroups != null) {
+					if (headerUsername == null) {
+						auth = Hudson.ANONYMOUS;
+					} else {
 						String groups = r.getHeader(headerGroups);
-						
+
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
 						localAuthorities.add(AUTHENTICATED_AUTHORITY);
-	
+
 						if (groups != null) {
 							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
 							while (tokenizer.hasMoreTokens()) {
 								final String token = tokenizer.nextToken().trim();
-								// String[] args = new String[] { token, username };
-								// LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
+								// String[] args = new String[] { token,
+								// username };
+								// LOGGER.log(Level.INFO,
+								// "granting: {0} to {1}", args);
 								localAuthorities.add(new GrantedAuthorityImpl(token));
 							}
 						}
-	
+
 						authorities = localAuthorities.toArray(new GrantedAuthority[0]);
-						
+
 						SearchTemplate searchTemplate = new UserSearchTemplate(headerUsername);
-						
+
 						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
 						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-						
-						String [] authString = foundAuthorities.toArray(new String[0]);
+
+						String[] authString = foundAuthorities.toArray(new String[0]);
 						for (int i = 0; i < authString.length; i++) {
 							tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
 						}
-						
+
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+						auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
 					}
-					
-					authContext.put(headerUsername, authorities);
+
+					SecurityContextHolder.getContext().setAuthentication(auth);
+					chain.doFilter(r, response);
 				}
-				Authentication auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
-				SecurityContextHolder.getContext().setAuthentication(auth);
-				
-				chain.doFilter(r, response);
 			}
 
 			public void destroy() {
@@ -255,7 +239,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		String fileName = "ReverseProxyBindSecurityRealm.groovy";
 		try {
 			File override = new File(Jenkins.getInstance().getRootDir(), fileName);
-			builder.parse(override.exists() ? new AutoCloseInputStream( new FileInputStream(override)) : getClass().getResourceAsStream(fileName), binding);
+			builder.parse(override.exists() ? new AutoCloseInputStream( new FileInputStream(override)) : getClass()
+					.getResourceAsStream(fileName), binding);
 		} catch (FileNotFoundException e) {
 			throw new Error("Failed to load " + fileName, e);
 		}
@@ -263,7 +248,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		WebApplicationContext appContext = builder.createApplicationContext();
 
 		proxyTemplate = new ReverseProxySearchTemplate();
-		
+
 		return new SecurityComponents(findBean(AuthenticationManager.class,
 				appContext), new ReverseProxyUserDetailsService(appContext));
 	}
@@ -274,14 +259,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	@Override
 	public UserDetails loadUserByUsername(String username)
 			throws UsernameNotFoundException, DataAccessException {
-		
+
 		UserDetails ud = getSecurityComponents().userDetails.loadUserByUsername(username);
-		
+
 		return ud;
 	}
 
 	@Extension
 	public static class DescriptorImpl extends Descriptor<SecurityRealm> {
+		@Override
 		public String getDisplayName() {
 			return Messages.ReverseProxySecurityRealm_DisplayName();
 		}
@@ -308,20 +294,19 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		GrantedAuthority[] authorities = authContext.get(auth.getName());
-		
+
 		SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
-		
+
 		final Set<String> groups = cachedGroups != null ? cachedGroups
-				: proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-		
+				: proxyTemplate.searchForSingleAttributeValues(searchTemplate,
+						authorities);
+
 		if (cache != null && cachedGroups == null && !groups.isEmpty()) {
 			synchronized (this) {
 				if (groupDetailsCache == null) {
-					groupDetailsCache = new CacheMap<String, Set<String>>(
-							cache.getSize());
+					groupDetailsCache = new CacheMap<String, Set<String>>(cache.getSize());
 				}
-				groupDetailsCache.put(groupname, new CacheEntry<Set<String>>(
-						cache.getTtl(), groups));
+				groupDetailsCache.put(groupname, new CacheEntry<Set<String>>(cache.getTtl(), groups));
 			}
 		}
 
@@ -329,18 +314,21 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			throw new UsernameNotFoundException(groupname);
 
 		return new GroupDetails() {
+			@Override
 			public String getName() {
 				return groups.iterator().next();
 			}
 		};
 	}
 
-	public static class ReverseProxyUserDetailsService implements UserDetailsService {
+	public static class ReverseProxyUserDetailsService implements
+	UserDetailsService {
 
 		private final ReverseProxyAuthoritiesPopulator authoritiesPopulator;
 
 		public ReverseProxyUserDetailsService(WebApplicationContext appContext) {
-			authoritiesPopulator = findBean(ReverseProxyAuthoritiesPopulator.class, appContext);
+			authoritiesPopulator = findBean(
+					ReverseProxyAuthoritiesPopulator.class, appContext);
 		}
 
 		public ReverseProxyUserDetails loadUserByUsername(String username)
@@ -357,20 +345,20 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					if (proxySecurityRealm.cache != null) {
 						final CacheEntry<ReverseProxyUserDetails> cached;
 						synchronized (proxySecurityRealm) {
-							cached = (proxySecurityRealm.userDetailsCache != null) ? proxySecurityRealm.userDetailsCache
-									.get(username) : null;
+							cached = proxySecurityRealm.userDetailsCache != null ? proxySecurityRealm.userDetailsCache.get(username) : null;
 						}
 						if (cached != null && cached.isValid()) {
 							return cached.getValue();
 						}
 					}
 				}
-				
+
 				ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
 				proxyUser.setUsername(username);
-				
-				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
-				
+
+				GrantedAuthority[] localAuthorities = authoritiesPopulator
+						.getGrantedAuthorities(proxyUser);
+
 				proxyUser.setAuthorities(localAuthorities);
 
 				if (securityRealm instanceof ReverseProxySecurityRealm
@@ -384,11 +372,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 								proxySecurityRealm.userDetailsCache = new CacheMap<String, ReverseProxyUserDetails>(
 										proxySecurityRealm.cache.getSize());
 							}
-							proxySecurityRealm.userDetailsCache.put(
-									username,
-									new CacheEntry<ReverseProxyUserDetails>(
-											proxySecurityRealm.cache.getTtl(),
-											proxyUser));
+							proxySecurityRealm.userDetailsCache.put(username,
+									new CacheEntry<ReverseProxyUserDetails>(proxySecurityRealm.cache.getTtl(), proxyUser));
 						}
 					}
 				}
@@ -400,62 +385,73 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			}
 		}
 	}
-	
+
 	/**
-     * {@link ReverseProxyAuthoritiesPopulator} that adds the automatic 'authenticated' role.
-     */
-    public static final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReverseProxyAuthoritiesPopulator {
+	 * {@link ReverseProxyAuthoritiesPopulator} that adds the automatic
+	 * 'authenticated' role.
+	 */
+	public static final class ReverseProxyAuthoritiesPopulatorImpl extends
+	DefaultReverseProxyAuthoritiesPopulator {
 
-        String rolePrefix = "ROLE_";
-        boolean convertToUpperCase = true;
+		String rolePrefix = "ROLE_";
+		boolean convertToUpperCase = true;
 
-        public ReverseProxyAuthoritiesPopulatorImpl(Hashtable<String, GrantedAuthority[]> authContext) {
-        	super(authContext);
-        	
-            super.setRolePrefix("");
-            super.setConvertToUpperCase(false);
-        }
+		public ReverseProxyAuthoritiesPopulatorImpl(
+				Hashtable<String, GrantedAuthority[]> authContext) {
+			super(authContext);
 
-        protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
-            return Collections.singleton(AUTHENTICATED_AUTHORITY);
-        }
+			super.setRolePrefix("");
+			super.setConvertToUpperCase(false);
+		}
 
-        public void setRolePrefix(String rolePrefix) {
-            this.rolePrefix = rolePrefix;
-        }
+		@Override
+		protected Set<GrantedAuthority> getAdditionalRoles(
+				ReverseProxyUserDetails proxyUser) {
+			return Collections.singleton(AUTHENTICATED_AUTHORITY);
+		}
 
-        public void setConvertToUpperCase(boolean convertToUpperCase) {
-            this.convertToUpperCase = convertToUpperCase;
-        }
+		@Override
+		public void setRolePrefix(String rolePrefix) {
+			this.rolePrefix = rolePrefix;
+		}
 
-        /**
-         * Retrieves the group membership in two ways.
-         *
-         * We'd like to retain the original name, but we historically used to do "ROLE_GROUPNAME".
-         * So to remain backward compatible, we make the super class pass the unmodified "groupName",
-         * then do the backward compatible translation here, so that the user gets both "ROLE_GROUPNAME" and "groupName".
-         */
-        public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
-    		
-            Set<GrantedAuthority> names = super.getGroupMembershipRoles(username);
+		@Override
+		public void setConvertToUpperCase(boolean convertToUpperCase) {
+			this.convertToUpperCase = convertToUpperCase;
+		}
 
-            Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
-            groupRoles.addAll(names);
+		/**
+		 * Retrieves the group membership in two ways.
+		 * 
+		 * We'd like to retain the original name, but we historically used to do
+		 * "ROLE_GROUPNAME". So to remain backward compatible, we make the super
+		 * class pass the unmodified "groupName", then do the backward
+		 * compatible translation here, so that the user gets both
+		 * "ROLE_GROUPNAME" and "groupName".
+		 */
+		@Override
+		public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
 
-            for (GrantedAuthority ga : names) {
-                String role = ga.getAuthority();
+			Set<GrantedAuthority> names = super
+					.getGroupMembershipRoles(username);
 
-                // backward compatible name mangling
-                if (convertToUpperCase) {
-                    role = role.toUpperCase();
-                }
-                groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
-            }
+			Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
+			groupRoles.addAll(names);
 
-            return groupRoles;
-        }
-    }
-	
+			for (GrantedAuthority ga : names) {
+				String role = ga.getAuthority();
+
+				// backward compatible name mangling
+				if (convertToUpperCase) {
+					role = role.toUpperCase();
+				}
+				groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
+			}
+
+			return groupRoles;
+		}
+	}
+
 	public static class ReverseProxyUserDetails implements UserDetails {
 
 		private static final long serialVersionUID = 8070729070782792157L;
@@ -530,8 +526,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		private final T value;
 
 		public CacheEntry(int ttlSeconds, T value) {
-			this.expires = System.currentTimeMillis()
-					+ TimeUnit.SECONDS.toMillis(ttlSeconds);
+			this.expires = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(ttlSeconds);
 			this.value = value;
 		}
 
@@ -560,7 +555,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 		public CacheMap(int cacheSize) {
 			super(cacheSize + 1); // prevent realloc when hitting cache size
-									// limit
+			// limit
 			this.cacheSize = cacheSize;
 		}
 
