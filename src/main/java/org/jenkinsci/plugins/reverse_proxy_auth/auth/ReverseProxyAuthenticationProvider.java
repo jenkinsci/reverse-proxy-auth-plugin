@@ -101,7 +101,7 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
      * merge any additional authorities retrieved from the populator with the propertis of original <tt>ldapUser</tt>
      * object and set the values of the username and password.</p>
      *
-     * @param user The intermediate LdapUserDetails instance returned by the authenticator.
+     * @param user The intermediate ReverseProxyUserDetails instance returned by the authenticator.
      * @param username the username submitted to the provider
      * @param password the password submitted to the provider
      *

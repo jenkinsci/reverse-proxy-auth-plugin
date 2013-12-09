@@ -34,9 +34,9 @@ import hudson.Util
 import javax.naming.Context
 
 /*
-    Configure LDAP as the authentication realm.
+    Configure The Reverse Proxy Auth. as the authentication realm.
 
-    Authentication is performed by doing LDAP bind.
+    Authentication is performed by doing Reverse Proxy, using username and LDAP groups from the HTTP header.
     The 'instance' object refers to the instance of ReverseProxySecurityRealm
 */
 

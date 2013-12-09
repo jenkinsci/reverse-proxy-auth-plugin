@@ -231,10 +231,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
 					}
+					
+					authContext.put(headerUsername, authorities);
 				}
 				Authentication auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
 				SecurityContextHolder.getContext().setAuthentication(auth);
-				authContext.put(headerUsername, authorities);
 				
 				chain.doFilter(r, response);
 			}
