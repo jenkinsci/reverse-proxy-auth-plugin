@@ -7,7 +7,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
+copies of the Software, and to permit persons to whom the Software isl
 furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in
@@ -21,16 +21,45 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
+
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
   <f:entry title="${%Header User Name}">
-    <f:textbox field="header" default="X-Forwarded-User" />
+    <f:textbox name="forwardedUser" value="${instance.forwardedUser}" default="X-Forwarded-User" />
   </f:entry>
-  <f:entry title="${%Header Groups Name}">
-    <f:textbox field="headerGroups" default="X-Forwarded-Groups" />
-  </f:entry>
-  <f:entry title="${%HeaderGroupsDelimiter Name}">
-    <f:textbox field="headerGroupsDelimiter" default="|" />
-  </f:entry>
+
+  <f:advanced>  
+	<f:entry title="${%Server}" >
+	  <f:textbox name="server" value="${instance.server}"
+            checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=server&amp;server='+encodeURIComponent(this.value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['managerPassword'].value)"/>
+	</f:entry>
+	<f:entry title="${%root DN}" >
+      <f:textbox name="rootDN" value="${instance.rootDN}" />
+      <f:checkbox name="inhibitInferRootDN" checked="${instance.inhibitInferRootDN}" title="${%Allow blank rootDN}"/>
+    </f:entry>
+    <f:entry title="${%User search base}" >
+      <f:textbox name="userSearchBase" value="${instance.userSearchBase}" />
+    </f:entry>
+    <f:entry title="${%User search filter}" >
+      <f:textbox name="userSearch" value="${instance.userSearch}" />
+    </f:entry>
+    <f:entry title="${%Group search base}" >
+      <f:textbox name="groupSearchBase" value="${instance.groupSearchBase}" />
+    </f:entry>
+    <f:entry title="${%Group search filter}" >
+      <f:textbox name="groupSearchFilter" value="${instance.groupSearchFilter}" />
+    </f:entry>
+    <f:entry title="${%Manager DN}" >
+      <f:textbox name="managerDN" value="${instance.managerDN}" autocomplete="off"
+         checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=managerDN&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['ldap.managerPassword'].value)"
+      />
+    </f:entry>
+    <f:entry title="${%Manager Password}" >
+      <f:password name="managerPassword" value="${instance.managerPassword}" autocomplete="off"
+         checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=password&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['ldap.managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.value)" 
+      />
+    </f:entry>
+  </f:advanced>
+  
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
   <j:if test="${uras != null}"> <!-- 1.495+ -->
     <f:entry title="${%Unprotected URLs}">
