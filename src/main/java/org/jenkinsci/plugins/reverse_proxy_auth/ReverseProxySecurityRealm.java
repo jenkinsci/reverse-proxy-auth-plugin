@@ -23,34 +23,42 @@
  */
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
+import static hudson.Util.fixEmpty;
+import static hudson.Util.fixEmptyAndTrim;
+import static hudson.Util.fixNull;
 import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
 import hudson.security.GroupDetails;
-import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.LDAPSecurityRealm;
 import hudson.security.SecurityRealm;
+import hudson.util.FormValidation;
+import hudson.util.Scrambler;
 import hudson.util.spring.BeanBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import javax.naming.Context;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
-import javax.naming.directory.BasicAttributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -64,21 +72,18 @@ import jenkins.model.Jenkins;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.ldap.LdapDataAccessException;
+import org.acegisecurity.ldap.InitialDirContextFactory;
+import org.acegisecurity.ldap.LdapTemplate;
+import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
-import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
+import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.apache.commons.io.input.AutoCloseInputStream;
-import org.apache.commons.lang.StringUtils;
-import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.springframework.dao.DataAccessException;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -87,84 +92,215 @@ import org.springframework.web.context.WebApplicationContext;
  */
 public class ReverseProxySecurityRealm extends SecurityRealm {
 
-	private static final Logger LOGGER = Logger
-			.getLogger(ReverseProxySecurityRealm.class.getName());
+	private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
 
-	public final String header;
-	public final String headerGroups;
-	public final String headerGroupsDelimiter;
+	/**
+	 * LDAP filter to look for groups by their names.
+	 *
+	 * "{0}" is the group name as given by the user.
+	 * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
+	 * WANTED: The specification of the syntax.
+	 */
+	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
+			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
+	/**
+	 * Scrambled password, used to first bind to LDAP.
+	 */
+	private final String managerPassword;
+
+	/**
+	 * Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP.
+	 */
+	private transient LdapTemplate ldapTemplate;
+
+	/**
+	 * Keeps the state of connected users and their granted authorities.
+	 */
+	private final Hashtable<String, GrantedAuthority[]> authContext;
+
+	/**
+	 * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
+	 * or "ldap.acme.org:389" and/or with protcol, like "ldap://ldap.acme.org".
+	 */
+	public final String server;
+
+	/**
+	 * The root DN to connect to. Normally something like "dc=sun,dc=com"
+	 *
+	 * How do I infer this?
+	 */
+	public final String rootDN;
+
+	/**
+	 * Allow the rootDN to be inferred? Default is false.
+	 * If true, allow rootDN to be blank.
+	 */
+	public final boolean inhibitInferRootDN;
+
+	/**
+	 * Specifies the relative DN from {@link #rootDN the root DN}.
+	 * This is used to narrow down the search space when doing user search.
+	 *
+	 * Something like "ou=people" but can be empty.
+	 */
+	public final String userSearchBase;
+
+	/**
+	 * Query to locate an entry that identifies the user, given the user name string.
+	 *
+	 * Normally "uid={0}"
+	 *
+	 * @see FilterBasedLdapUserSearch
+	 */
+	public final String userSearch;
+
+	/**
+	 * This defines the organizational unit that contains groups.
+	 *
+	 * Normally "" to indicate the full LDAP search, but can be often narrowed down to
+	 * something like "ou=groups"
+	 *
+	 * @see FilterBasedLdapUserSearch
+	 */
+	public final String groupSearchBase;
+
+	/**
+	 * Query to locate an entry that identifies the group, given the group name string. If non-null it will override
+	 * the default specified by {@link #GROUP_SEARCH}
+	 *
+	 * @since 1.5
+	 */
+	public final String groupSearchFilter;
+
+	/**
+	 * If non-null, we use this and {@link #managerPassword}
+	 * when binding to LDAP.
+	 *
+	 * This is necessary when LDAP doesn't support anonymous access.
+	 */
+	public final String managerDN;
+
+	/**
+	 * The name of the header which the username has to be extracted from.
+	 */
+	public final String forwardedUser;
+
+	/**
+	 * The username retrieved from the header.
+	 */
 	public String retrievedUsername;
 
+	/**
+	 * The authorities that are granted to the authenticated user.
+	 */
 	public GrantedAuthority[] authorities;
 
-	public Hashtable<String, GrantedAuthority[]> authContext;
-	/**
-	 * The cache configuration
-	 * 
-	 * @since 1.3
-	 */
-	private final CacheConfiguration cache;
-
-	private ReverseProxySearchTemplate proxyTemplate;
-
-	/**
-	 * The {@link UserDetails} cache.
-	 */
-	private transient Map<String, CacheEntry<ReverseProxyUserDetails>> userDetailsCache = null;
-
-	/**
-	 * The group details cache.
-	 */
-	private transient Map<String, CacheEntry<Set<String>>> groupDetailsCache = null;
-
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String header, String headerGroups,
-			String headerGroupsDelimiter) {
-		this.header = header.trim();
+	public ReverseProxySecurityRealm(String forwardedUser, String server, String rootDN, boolean inhibitInferRootDN, String userSearchBase,
+			String userSearch, String groupSearchBase, String groupSearchFilter, String managerDN, String managerPassword) {
 
-		this.headerGroups = headerGroups;
-		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
-			this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
-		} else {
-			this.headerGroupsDelimiter = "|";
-		}
+		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+		//
+		this.server = fixEmptyAndTrim(server);
+		this.managerDN = fixEmpty(managerDN);
+		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
+		this.inhibitInferRootDN = inhibitInferRootDN;
+		if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
+		this.rootDN = rootDN.trim();
+		this.userSearchBase = fixNull(userSearchBase).trim();
+		userSearch = fixEmptyAndTrim(userSearch);
+		this.userSearch = userSearch != null ? userSearch : "uid={0}";
+		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
+		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
 
-		cache = null;
-		authContext = new Hashtable<String, GrantedAuthority[]>();
 		authorities = new GrantedAuthority[0];
+		authContext = new Hashtable<String, GrantedAuthority[]>();
 	}
 
 	/**
 	 * Name of the HTTP header to look at.
 	 */
-	public String getHeader() {
-		return header;
+	public String getForwardedUser() {
+		return forwardedUser;
 	}
 
-	public String getHeaderGroups() {
-		return headerGroups;
+	public String getServerUrl() {
+		if (server == null) {
+			return null;
+		}
+		StringBuilder buf = new StringBuilder();
+		boolean first = true;
+
+		for (String s: server.split("\\s+")) {
+			if (s.trim().length() == 0) continue;
+			if (first) first = false; else buf.append(' ');
+			buf.append(addPrefix(s));
+		}
+		return buf.toString();
 	}
 
-	public String getHeaderGroupsDelimiter() {
-		return headerGroupsDelimiter;
+	public String getGroupSearchFilter() {
+		return groupSearchFilter;
 	}
 
-	@Override
-	public boolean canLogOut() {
-		return false;
+	/**
+	 * Infer the root DN.
+	 *
+	 * @return null if not found.
+	 */
+	private String inferRootDN(String server) {
+		try {
+			Hashtable<String,String> props = new Hashtable<String,String>();
+			if(managerDN != null) {
+				props.put(Context.SECURITY_PRINCIPAL, managerDN);
+				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
+			}
+			props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+			props.put(Context.PROVIDER_URL, toProviderUrl(fixNull(getServerUrl()), ""));
+
+			DirContext ctx = new InitialDirContext(props);
+			Attributes atts = ctx.getAttributes("");
+			Attribute a = atts.get("defaultNamingContext");
+			if(a != null && a.get() != null) { // this entry is available on Active Directory. See http://msdn2.microsoft.com/en-us/library/ms684291(VS.85).aspx
+				return a.get().toString();
+			}
+
+			a = atts.get("namingcontexts");
+			if(a == null) {
+				LOGGER.warning("namingcontexts attribute not found in root DSE of " + server);
+				return null;
+			}
+			return a.get().toString();
+		} catch (NamingException e) {
+			LOGGER.log(Level.WARNING,"Failed to connect to LDAP to infer Root DN for "+server,e);
+			return null;
+		}
 	}
 
-	public CacheConfiguration getCache() {
-		return cache;
+	public static String toProviderUrl(String serverUrl, String rootDN) {
+		if (serverUrl == null) {
+			return null;
+		}
+		StringBuilder buf = new StringBuilder();
+		boolean first = true;
+		for (String s: serverUrl.split("\\s+")) {
+			if (s.trim().length() == 0) continue;
+			if (first) first = false; else buf.append(' ');
+			s = addPrefix(s);
+			buf.append(s);
+			if (!s.endsWith("/")) buf.append('/');
+			buf.append(fixNull(rootDN));
+		}
+		return buf.toString();
 	}
 
-	public Integer getCacheSize() {
-		return cache == null ? null : cache.getSize();
+	public String getManagerPassword() {
+		return Scrambler.descramble(managerPassword);
 	}
 
-	public Integer getCacheTTL() {
-		return cache == null ? null : cache.getTtl();
+	public String getLDAPURL() {
+		return toProviderUrl(getServerUrl(), fixNull(rootDN));
 	}
 
 	@Override
@@ -173,57 +309,43 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			public void init(FilterConfig filterConfig) throws ServletException {
 			}
 
-			@SuppressWarnings("unused")
 			public void doFilter(ServletRequest request,
 					ServletResponse response, FilterChain chain)
 							throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
 
-				String headerUsername = r.getHeader(header);
-				retrievedUsername = headerUsername;
+				retrievedUsername = r.getHeader(forwardedUser);
 
-				Authentication auth;
-				if (headerGroups != null) {
-					if (headerUsername == null) {
-						auth = Hudson.ANONYMOUS;
+				Authentication auth = Hudson.ANONYMOUS;
+				if (retrievedUsername != null) {
+					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", retrievedUsername);
+					if (getLDAPURL() != null) {
+
+						GrantedAuthority []  storedGrants = authContext.get(retrievedUsername);
+						if (storedGrants != null && storedGrants.length > 1) {
+							authorities = storedGrants;
+						} else {
+							LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(retrievedUsername);
+							authorities = userDetails.getAuthorities();
+
+							Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+							tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+
+							authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+						}
+
 					} else {
-						String groups = r.getHeader(headerGroups);
-						LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", headerUsername);
-						LOGGER.log(Level.INFO, "USER GROUPS: {0}", groups);
-
-						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
-						localAuthorities.add(AUTHENTICATED_AUTHORITY);
-
-						if (groups != null) {
-							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
-							while (tokenizer.hasMoreTokens()) {
-								final String token = tokenizer.nextToken().trim();
-								// String[] args = new String[] { token, username };
-								// LOGGER.log(Level.INFO, "granting: {0} to {1}", args);
-								localAuthorities.add(new GrantedAuthorityImpl(token));
-							}
-						}
-
-						authorities = localAuthorities.toArray(new GrantedAuthority[0]);
-
-						SearchTemplate searchTemplate = new UserSearchTemplate(headerUsername);
-
-						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
 						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-
-						String[] authString = foundAuthorities.toArray(new String[0]);
-						for (int i = 0; i < authString.length; i++) {
-							tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
-						}
+						tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
 
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-						authContext.put(headerUsername, authorities);
-
-						auth = new UsernamePasswordAuthenticationToken(headerUsername, "", authorities);
 					}
-					SecurityContextHolder.getContext().setAuthentication(auth);
-					chain.doFilter(r, response);
+					authContext.put(retrievedUsername, authorities);
+					auth = new UsernamePasswordAuthenticationToken(retrievedUsername, "", authorities);
+
 				}
+				SecurityContextHolder.getContext().setAuthentication(auth);
+				chain.doFilter(r, response);
 			}
 
 			public void destroy() {
@@ -232,87 +354,49 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	}
 
 	@Override
+	public boolean canLogOut() {
+		return false;
+	}
+
+	@Override
 	public SecurityComponents createSecurityComponents() {
 		Binding binding = new Binding();
 		binding.setVariable("instance", this);
 
 		BeanBuilder builder = new BeanBuilder(Jenkins.getInstance().pluginManager.uberClassLoader);
-
 		String fileName = "ReverseProxyBindSecurityRealm.groovy";
 		try {
 			File override = new File(Jenkins.getInstance().getRootDir(), fileName);
-			builder.parse(override.exists() ? new AutoCloseInputStream( new FileInputStream(override)) : getClass()
-					.getResourceAsStream(fileName), binding);
+			builder.parse(override.exists() ? new AutoCloseInputStream(new FileInputStream(override)) :
+				getClass().getResourceAsStream(fileName), binding);
 		} catch (FileNotFoundException e) {
-			throw new Error("Failed to load " + fileName, e);
+			throw new Error("Failed to load "+fileName,e);
 		}
-
 		WebApplicationContext appContext = builder.createApplicationContext();
 
-		proxyTemplate = new ReverseProxySearchTemplate();
+		ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
 
-		return new SecurityComponents(findBean(AuthenticationManager.class,
-				appContext), new ReverseProxyUserDetailsService(appContext));
+		return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
-	public UserDetails loadUserByUsername(String username)
-			throws UsernameNotFoundException, DataAccessException {
-
-		UserDetails ud = getSecurityComponents().userDetails.loadUserByUsername(username);
-
-		return ud;
-	}
-
-	@Extension
-	public static class DescriptorImpl extends Descriptor<SecurityRealm> {
-		@Override
-		public String getDisplayName() {
-			return Messages.ReverseProxySecurityRealm_DisplayName();
-		}
+	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
+		return getSecurityComponents().userDetails.loadUserByUsername(username);
 	}
 
 	@Override
-	public GroupDetails loadGroupByGroupname(String groupname)
-			throws UsernameNotFoundException, DataAccessException {
+	@SuppressWarnings("unchecked")
+	public GroupDetails loadGroupByGroupname(String groupname) throws UsernameNotFoundException, DataAccessException {
 
-		Set<String> cachedGroups = null;
-		if (cache != null) {
-			final CacheEntry<Set<String>> cached;
-			synchronized (this) {
-				cached = groupDetailsCache != null ? groupDetailsCache.get(groupname) : null;
-			}
-			if (cached != null && cached.isValid()) {
-				cachedGroups = cached.getValue();
-			} else {
-				cachedGroups = null;
-			}
-		} else {
-			cachedGroups = null;
-		}
+		// TODO: obtain a DN instead so that we can obtain multiple attributes later
+		String searchBase = groupSearchBase != null ? groupSearchBase : "";
+		String searchFilter = groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH;
+		final Set<String> groups = ldapTemplate.searchForSingleAttributeValues(searchBase, searchFilter, new String[]{groupname}, "cn");
 
-		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		GrantedAuthority[] authorities = authContext.get(auth.getName());
-
-		SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
-
-		final Set<String> groups = cachedGroups != null ? cachedGroups
-				: proxyTemplate.searchForSingleAttributeValues(searchTemplate,
-						authorities);
-
-		if (cache != null && cachedGroups == null && !groups.isEmpty()) {
-			synchronized (this) {
-				if (groupDetailsCache == null) {
-					groupDetailsCache = new CacheMap<String, Set<String>>(cache.getSize());
-				}
-				groupDetailsCache.put(groupname, new CacheEntry<Set<String>>(cache.getTtl(), groups));
-			}
-		}
-
-		if (groups.isEmpty())
+		if(groups.isEmpty())
 			throw new UsernameNotFoundException(groupname);
 
 		return new GroupDetails() {
@@ -323,248 +407,78 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		};
 	}
 
-	public static class ReverseProxyUserDetailsService implements
-	UserDetailsService {
+	public <T> T extractBean(Class<T> type, WebApplicationContext appContext) {
+		T returnedObj = findBean(type, appContext);
+		return returnedObj;
+	}
 
-		private final ReverseProxyAuthoritiesPopulator authoritiesPopulator;
+	@Extension
+	public static class ProxyLDAPDescriptor extends Descriptor<SecurityRealm> {
 
-		public ReverseProxyUserDetailsService(WebApplicationContext appContext) {
-			authoritiesPopulator = findBean(
-					ReverseProxyAuthoritiesPopulator.class, appContext);
+		@Override
+		public String getDisplayName() {
+			return Messages.ReverseProxySecurityRealm_DisplayName();
 		}
 
-		public ReverseProxyUserDetails loadUserByUsername(String username)
-				throws UsernameNotFoundException, DataAccessException {
+		public FormValidation doServerCheck(
+				@QueryParameter final String server,
+				@QueryParameter final String managerDN,
+				@QueryParameter final String managerPassword) {
+
+			if(!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER))
+				return FormValidation.ok();
+
 			try {
-				SecurityRealm securityRealm = Jenkins.getInstance() == null ? null
-						: Jenkins.getInstance().getSecurityRealm();
-
-				if (securityRealm instanceof ReverseProxySecurityRealm
-						&& securityRealm.getSecurityComponents().userDetails == this) {
-
-					ReverseProxySecurityRealm proxySecurityRealm = (ReverseProxySecurityRealm) securityRealm;
-
-					if (proxySecurityRealm.cache != null) {
-						final CacheEntry<ReverseProxyUserDetails> cached;
-						synchronized (proxySecurityRealm) {
-							cached = proxySecurityRealm.userDetailsCache != null ? proxySecurityRealm.userDetailsCache.get(username) : null;
-						}
-						if (cached != null && cached.isValid()) {
-							return cached.getValue();
-						}
-					}
+				Hashtable<String,String> props = new Hashtable<String,String>();
+				if(managerDN!=null && managerDN.trim().length() > 0  && !"undefined".equals(managerDN)) {
+					props.put(Context.SECURITY_PRINCIPAL,managerDN);
+				}
+				if(managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
+					props.put(Context.SECURITY_CREDENTIALS,managerPassword);
 				}
 
-				ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
-				proxyUser.setUsername(username);
+				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+				props.put(Context.PROVIDER_URL, toProviderUrl(server, ""));
 
-				GrantedAuthority[] localAuthorities = authoritiesPopulator
-						.getGrantedAuthorities(proxyUser);
 
-				proxyUser.setAuthorities(localAuthorities);
+				DirContext ctx = new InitialDirContext(props);
+				ctx.getAttributes("");
+				return FormValidation.ok();   // connected
+			} catch (NamingException e) {
+				// trouble-shoot
+				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(server.trim());
+				if(!m.matches())
+					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
 
-				if (securityRealm instanceof ReverseProxySecurityRealm
-						&& securityRealm.getSecurityComponents().userDetails == this) {
-
-					ReverseProxySecurityRealm proxySecurityRealm = (ReverseProxySecurityRealm) securityRealm;
-
-					if (proxySecurityRealm.cache != null) {
-						synchronized (proxySecurityRealm) {
-							if (proxySecurityRealm.userDetailsCache == null) {
-								proxySecurityRealm.userDetailsCache = new CacheMap<String, ReverseProxyUserDetails>(
-										proxySecurityRealm.cache.getSize());
-							}
-							proxySecurityRealm.userDetailsCache.put(username,
-									new CacheEntry<ReverseProxyUserDetails>(proxySecurityRealm.cache.getTtl(), proxyUser));
-						}
-					}
+				try {
+					InetAddress adrs = InetAddress.getByName(m.group(2));
+					int port = m.group(1)!=null ? 636 : 389;
+					if(m.group(3)!=null)
+						port = Integer.parseInt(m.group(3));
+					Socket s = new Socket(adrs,port);
+					s.close();
+				} catch (UnknownHostException x) {
+					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
+				} catch (IOException x) {
+					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, x.getMessage()));
 				}
 
-				return proxyUser;
-			} catch (LdapDataAccessException e) {
-				LOGGER.log(Level.WARNING, "Failed to search LDAP for username=" + username, e);
-				throw new UserMayOrMayNotExistException(e.getMessage(), e);
+				// otherwise we don't know what caused it, so fall back to the general error report
+				// getMessage() alone doesn't offer enough
+				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, e));
+			} catch (NumberFormatException x) {
+				// The getLdapCtxInstance method throws this if it fails to parse the port number
+				return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());
 			}
 		}
 	}
 
 	/**
-	 * {@link ReverseProxyAuthoritiesPopulator} that adds the automatic
-	 * 'authenticated' role.
+	 * If the given "server name" is just a host name (plus optional host name), add ldap:// prefix.
+	 * Otherwise assume it already contains the scheme, and leave it intact.
 	 */
-	public static final class ReverseProxyAuthoritiesPopulatorImpl extends
-	DefaultReverseProxyAuthoritiesPopulator {
-
-		String rolePrefix = "ROLE_";
-		boolean convertToUpperCase = true;
-
-		public ReverseProxyAuthoritiesPopulatorImpl(
-				Hashtable<String, GrantedAuthority[]> authContext) {
-			super(authContext);
-
-			super.setRolePrefix("");
-			super.setConvertToUpperCase(false);
-		}
-
-		@Override
-		protected Set<GrantedAuthority> getAdditionalRoles(
-				ReverseProxyUserDetails proxyUser) {
-			return Collections.singleton(AUTHENTICATED_AUTHORITY);
-		}
-
-		@Override
-		public void setRolePrefix(String rolePrefix) {
-			this.rolePrefix = rolePrefix;
-		}
-
-		@Override
-		public void setConvertToUpperCase(boolean convertToUpperCase) {
-			this.convertToUpperCase = convertToUpperCase;
-		}
-
-		/**
-		 * Retrieves the group membership in two ways.
-		 * 
-		 * We'd like to retain the original name, but we historically used to do
-		 * "ROLE_GROUPNAME". So to remain backward compatible, we make the super
-		 * class pass the unmodified "groupName", then do the backward
-		 * compatible translation here, so that the user gets both
-		 * "ROLE_GROUPNAME" and "groupName".
-		 */
-		@Override
-		public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
-
-			Set<GrantedAuthority> names = super
-					.getGroupMembershipRoles(username);
-
-			Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
-			groupRoles.addAll(names);
-
-			for (GrantedAuthority ga : names) {
-				String role = ga.getAuthority();
-
-				// backward compatible name mangling
-				if (convertToUpperCase) {
-					role = role.toUpperCase();
-				}
-				groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
-			}
-
-			return groupRoles;
-		}
-	}
-
-	public static class ReverseProxyUserDetails implements UserDetails {
-
-		private static final long serialVersionUID = 8070729070782792157L;
-
-		private static Attributes attributes = new BasicAttributes();
-
-		private GrantedAuthority[] authorities;
-		private String username;
-
-		public GrantedAuthority[] getAuthorities() {
-			return authorities;
-		}
-
-		public void setAuthorities(GrantedAuthority[] authorities) {
-			this.authorities = authorities;
-		}
-
-		public String getPassword() {
-			return "";
-		}
-
-		public String getUsername() {
-			return username;
-		}
-
-		public void setUsername(String username) {
-			this.username = username;
-		}
-
-		public boolean isAccountNonExpired() {
-			return true;
-		}
-
-		public boolean isAccountNonLocked() {
-			return true;
-		}
-
-		public boolean isCredentialsNonExpired() {
-			return true;
-		}
-
-		public boolean isEnabled() {
-			return true;
-		}
-
-		public Attributes getAttributes() {
-			return attributes;
-		}
-	}
-
-	public static class CacheConfiguration {
-		private final int size;
-		private final int ttl;
-
-		@DataBoundConstructor
-		public CacheConfiguration(int size, int ttl) {
-			this.size = Math.max(10, Math.min(size, 1000));
-			this.ttl = Math.max(30, Math.min(ttl, 3600));
-		}
-
-		public int getSize() {
-			return size;
-		}
-
-		public int getTtl() {
-			return ttl;
-		}
-	}
-
-	private static class CacheEntry<T> {
-		private final long expires;
-		private final T value;
-
-		public CacheEntry(int ttlSeconds, T value) {
-			this.expires = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(ttlSeconds);
-			this.value = value;
-		}
-
-		public T getValue() {
-			return value;
-		}
-
-		public boolean isValid() {
-			return System.currentTimeMillis() < expires;
-		}
-	}
-
-	/**
-	 * While we could use Guava's CacheBuilder the method signature changes make
-	 * using it problematic. Safer to roll our own and ensure compatibility
-	 * across as wide a range of Jenkins versions as possible.
-	 * 
-	 * @param <K>
-	 *            Key type
-	 * @param <V>
-	 *            Cache entry type
-	 */
-	private static class CacheMap<K, V> extends LinkedHashMap<K, CacheEntry<V>> {
-
-		private final int cacheSize;
-
-		public CacheMap(int cacheSize) {
-			super(cacheSize + 1); // prevent realloc when hitting cache size
-			// limit
-			this.cacheSize = cacheSize;
-		}
-
-		@Override
-		protected boolean removeEldestEntry(Map.Entry<K, CacheEntry<V>> eldest) {
-			return size() > cacheSize || eldest.getValue() == null
-					|| !eldest.getValue().isValid();
-		}
+	private static String addPrefix(String server) {
+		if(server.contains("://"))  return server;
+		else    return "ldap://"+server;
 	}
 }
