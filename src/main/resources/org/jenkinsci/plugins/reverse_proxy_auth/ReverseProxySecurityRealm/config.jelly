@@ -28,7 +28,7 @@ THE SOFTWARE.
   <f:entry title="${%Header Groups Name}">
     <f:textbox field="headerGroups" default="X-Forwarded-Groups" />
   </f:entry>
-  <f:entry title="${%HeaderGroupsDelimiter Name}">
+  <f:entry title="${%Header Groups Delimiter Name}">
     <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
