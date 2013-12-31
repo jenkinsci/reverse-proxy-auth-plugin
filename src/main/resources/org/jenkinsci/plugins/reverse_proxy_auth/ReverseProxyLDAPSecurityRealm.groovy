@@ -74,34 +74,19 @@ authoritiesPopulator(ProxyLDAPAuthoritiesPopulator, initialDirContextFactory, in
 }
 
 authenticationManager(ProviderManager) {
-    if (instance.getLDAPURL() != null) {
-        providers = [
-            // talk to Reverse Proxy Authentication + Authorization via LDAP
-            bean(LdapAuthenticationProvider,bindAuthenticator,authoritiesPopulator),
-        
-            // these providers apply everywhere
-            bean(RememberMeAuthenticationProvider) {
-                key = Jenkins.getInstance().getSecretKey();
-            },
-            // this doesn't mean we allow anonymous access.
-            // we just authenticate anonymous users as such,
-            // so that later authorization can reject them if so configured
-            bean(AnonymousAuthenticationProvider) {
-                key = "anonymous"
-            }
-        ]
-    } else {
-	    providers = [
-	        // these providers apply everywhere
-	        bean(RememberMeAuthenticationProvider) {
-	            key = Jenkins.getInstance().getSecretKey();
-	        },
-	        // this doesn't mean we allow anonymous access.
-	        // we just authenticate anonymous users as such,
-	        // so that later authorization can reject them if so configured
-	        bean(AnonymousAuthenticationProvider) {
-	            key = "anonymous"
-	        }
-	    ]
-    }
+    providers = [
+        // talk to Reverse Proxy Authentication + Authorisation via LDAP
+        bean(LdapAuthenticationProvider,bindAuthenticator,authoritiesPopulator),
+    
+        // these providers apply everywhere
+        bean(RememberMeAuthenticationProvider) {
+            key = Jenkins.getInstance().getSecretKey();
+        },
+        // this doesn't mean we allow anonymous access.
+        // we just authenticate anonymous users as such,
+        // so that later authorisation can reject them if so configured
+        bean(AnonymousAuthenticationProvider) {
+            key = "anonymous"
+        }
+    ]
 }
