@@ -78,6 +78,7 @@ import org.acegisecurity.ldap.LdapTemplate;
 import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
+import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.apache.commons.io.input.AutoCloseInputStream;
@@ -206,8 +207,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.managerDN = fixEmpty(managerDN);
 		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
 		this.inhibitInferRootDN = inhibitInferRootDN;
-		if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
-		this.rootDN = rootDN.trim();
+
+		if (this.server != null) {
+			if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
+			this.rootDN = rootDN.trim();
+		} else {
+			this.rootDN = null;
+		}
+
 		this.userSearchBase = fixNull(userSearchBase).trim();
 		userSearch = fixEmptyAndTrim(userSearch);
 		this.userSearch = userSearch != null ? userSearch : "uid={0}";
@@ -364,7 +371,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		binding.setVariable("instance", this);
 
 		BeanBuilder builder = new BeanBuilder(Jenkins.getInstance().pluginManager.uberClassLoader);
-		String fileName = "ReverseProxyBindSecurityRealm.groovy";
+
+		String fileName;
+		if (getLDAPURL() != null) {
+			fileName = "ReverseProxyLDAPSecurityRealm.groovy";
+		} else {
+			fileName = "ReverseProxySecurityRealm.groovy";
+		}
+
 		try {
 			File override = new File(Jenkins.getInstance().getRootDir(), fileName);
 			builder.parse(override.exists() ? new AutoCloseInputStream(new FileInputStream(override)) :
@@ -374,9 +388,23 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 		WebApplicationContext appContext = builder.createApplicationContext();
 
-		ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+		if (getLDAPURL() != null) {
+			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+		}
 
-		return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
+		if (getLDAPURL() != null) {
+			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
+		} else {
+			return new SecurityComponents(new AuthenticationManager() {
+				public Authentication authenticate(Authentication authentication) {
+					return authentication;
+				}
+			}, new UserDetailsService() {
+				public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
+					throw new UsernameNotFoundException(username);
+				}
+			});
+		}
 	}
 
 	/**
