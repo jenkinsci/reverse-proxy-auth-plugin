@@ -1,5 +1,4 @@
 reverse-proxy-auth-plugin
-=========================
 
 This extension adds to the existing Reverse Proxy Authentication Plugin the possibility to ready LDAP groups via discovery based on username and also apply Role-based matrix Authorisation.
 
