@@ -7,7 +7,7 @@
   </parent>
 
   <artifactId>reverse-proxy-auth-plugin</artifactId>
-  <version>1.2-SNAPSHOT</version>
+  <version>1.2</version>
   <packaging>hpi</packaging>
 
   <name>Jenkins Reverse Proxy Auth Plugin</name>
@@ -18,6 +18,11 @@
       <id>kohsuke</id>
       <name>Kohsuke Kawaguchi</name>
       <email>kkawaguchi@cloudbees.com</email>
+    </developer>
+    <developer>
+      <id>wilderrodrigues</id>
+      <name>Wilder Rodrigues</name>
+      <email>wrodrigues@schubergphilis.com</email>
     </developer>
   </developers>
 
@@ -33,11 +38,18 @@
     </repository>
   </repositories>
 
-    <pluginRepositories>
-        <pluginRepository>
-            <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
-        </pluginRepository>
-    </pluginRepositories>
+  <distributionManagement>
+    <repository>
+      <id>maven.jenkins-ci.org</id>
+      <url>http://maven.jenkins-ci.org:8081/content/repositories/releases/</url>
+    </repository>
+  </distributionManagement>
+
+  <pluginRepositories>
+    <pluginRepository>
+       <id>repo.jenkins-ci.org</id>
+       <url>http://repo.jenkins-ci.org/public/</url>
+    </pluginRepository>
+  </pluginRepositories>
 </project>  
 

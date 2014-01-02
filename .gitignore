@@ -3,3 +3,6 @@
 *.ipr
 target
 work
+/.classpath
+/.project
+/.settings
