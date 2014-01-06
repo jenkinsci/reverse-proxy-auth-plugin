@@ -26,7 +26,12 @@ THE SOFTWARE.
   <f:entry title="${%Header User Name}">
     <f:textbox name="forwardedUser" value="${instance.forwardedUser}" default="X-Forwarded-User" />
   </f:entry>
-
+  <f:entry title="${%Header Groups Name}">
+    <f:textbox field="headerGroups" default="X-Forwarded-Groups" />
+  </f:entry>
+  <f:entry title="${%Header Groups Delimiter Name}">
+    <f:textbox field="headerGroupsDelimiter" default="|" />
+  </f:entry>
   <f:advanced>  
 	<f:entry title="${%Server}" >
 	  <f:textbox name="server" value="${instance.server}"
