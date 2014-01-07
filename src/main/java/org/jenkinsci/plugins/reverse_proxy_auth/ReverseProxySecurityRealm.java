@@ -224,7 +224,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public final String headerGroupsDelimiter;
 
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN, String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String managerDN, String managerPassword) {
+	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String managerDN, String managerPassword) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -372,13 +373,19 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						if (storedGrants != null && storedGrants.length > 1) {
 							authorities = storedGrants;
 						} else {
-							LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(retrievedUsername);
-							authorities = userDetails.getAuthorities();
+							try {
+								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(retrievedUsername);
+								authorities = userDetails.getAuthorities();
 
-							Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-							tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-
-							authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+							} catch (UsernameNotFoundException e) {
+								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
+							} finally {
+								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
+								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+							}
 						}
 
 					} else {
@@ -453,16 +460,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 		WebApplicationContext appContext = builder.createApplicationContext();
 
-		if (getLDAPURL() != null) {
-			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
-		}
-
-		if (getLDAPURL() != null) {
+		if (getLDAPURL() == null) {
 			proxyTemplate = new ReverseProxySearchTemplate();
 
 			return new SecurityComponents(findBean(AuthenticationManager.class,
 					appContext), new ReverseProxyUserDetailsService(appContext));
 		} else {
+			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+
 			return new SecurityComponents(new AuthenticationManager() {
 				public Authentication authenticate(Authentication authentication) {
 					return authentication;
