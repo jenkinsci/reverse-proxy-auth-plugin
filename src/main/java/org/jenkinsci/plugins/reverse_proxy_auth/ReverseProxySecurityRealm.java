@@ -94,6 +94,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.springframework.dao.DataAccessException;
@@ -378,10 +379,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 								authorities = userDetails.getAuthorities();
 
 								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
 								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+
 							} catch (UsernameNotFoundException e) {
 								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
-							} finally {
+
 								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
 								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
 								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
@@ -463,20 +466,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		if (getLDAPURL() == null) {
 			proxyTemplate = new ReverseProxySearchTemplate();
 
-			return new SecurityComponents(findBean(AuthenticationManager.class,
-					appContext), new ReverseProxyUserDetailsService(appContext));
+			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ReverseProxyUserDetailsService(appContext));
 		} else {
 			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
 
-			return new SecurityComponents(new AuthenticationManager() {
-				public Authentication authenticate(Authentication authentication) {
-					return authentication;
-				}
-			}, new UserDetailsService() {
-				public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
-					throw new UsernameNotFoundException(username);
-				}
-			});
+			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
 		}
 	}
 
