@@ -43,13 +43,6 @@ import javax.naming.Context
     The 'instance' object refers to the instance of ReverseProxySecurityRealm
 */
 
-/*
-    Configure LDAP as the authentication realm.
-
-    Authentication is performed by doing LDAP bind.
-    The 'instance' object refers to the instance of LDAPSecurityRealml
-*/
-
 initialDirContextFactory(DefaultInitialDirContextFactory, instance.getLDAPURL() ) {
   if(instance.managerDN != null) {
     managerDn = instance.managerDN;

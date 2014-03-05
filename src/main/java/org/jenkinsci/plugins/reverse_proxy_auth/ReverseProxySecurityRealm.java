@@ -200,11 +200,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public final String managerDN;
 
 	/**
-	 * The username retrieved from the header.
-	 */
-	public String retrievedUsername;
-
-	/**
 	 * The authorities that are granted to the authenticated user.
 	 */
 	public GrantedAuthority[] authorities;
@@ -363,19 +358,19 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 							throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
 
-				retrievedUsername = r.getHeader(forwardedUser);
+				String userFromHeader = r.getHeader(forwardedUser);
 
 				Authentication auth = Hudson.ANONYMOUS;
-				if (retrievedUsername != null) {
-					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", retrievedUsername);
+				if (userFromHeader != null) {
+					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
 					if (getLDAPURL() != null) {
 
-						GrantedAuthority []  storedGrants = authContext.get(retrievedUsername);
+						GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
 						if (storedGrants != null && storedGrants.length > 1) {
 							authorities = storedGrants;
 						} else {
 							try {
-								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(retrievedUsername);
+								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
 								authorities = userDetails.getAuthorities();
 
 								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
@@ -407,7 +402,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 						authorities = localAuthorities.toArray(new GrantedAuthority[0]);
 
-						SearchTemplate searchTemplate = new UserSearchTemplate(retrievedUsername);
+						SearchTemplate searchTemplate = new UserSearchTemplate(userFromHeader);
 
 						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
 						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
@@ -418,13 +413,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						}
 
 						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-						authContext.put(retrievedUsername, authorities);
+						authContext.put(userFromHeader, authorities);
 
-						auth = new UsernamePasswordAuthenticationToken(retrievedUsername, "", authorities);
+						auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
 					}
-					authContext.put(retrievedUsername, authorities);
-					auth = new UsernamePasswordAuthenticationToken(retrievedUsername, "", authorities);
-
+					authContext.put(userFromHeader, authorities);
+					auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
 				}
 				SecurityContextHolder.getContext().setAuthentication(auth);
 				chain.doFilter(r, response);
