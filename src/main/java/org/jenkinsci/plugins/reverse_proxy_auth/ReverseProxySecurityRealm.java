@@ -208,6 +208,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * The name of the header which the username has to be extracted from.
 	 */
 	public final String forwardedUser;
+	
+	/**
+	 * The username retrieved from the header field, which is represented by the forwardedUser attribute.
+	 */
+	public String retrievedUser;
 
 	/**
 	 * Header name of the groups field.
@@ -420,6 +425,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					authContext.put(userFromHeader, authorities);
 					auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
 				}
+				
+				retrievedUser = userFromHeader;
+				
 				SecurityContextHolder.getContext().setAuthentication(auth);
 				chain.doFilter(r, response);
 			}

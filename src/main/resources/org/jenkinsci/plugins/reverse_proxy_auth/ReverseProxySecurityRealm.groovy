@@ -43,7 +43,7 @@ import javax.naming.Context
 authoritiesPopulator(ReverseProxyAuthoritiesPopulatorImpl, instance.authContext) {
 }
 
-authenticator(DefaultReverseProxyAuthenticator, instance.retrievedUsername, instance.authorities) {
+authenticator(DefaultReverseProxyAuthenticator, instance.retrievedUser, instance.authorities) {
 }
 
 authenticationManager(ProviderManager) {
