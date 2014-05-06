@@ -94,6 +94,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
@@ -191,6 +192,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 */
 	public final String groupSearchFilter;
 
+        /**
+         * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
+         * is the user's full DN while {1} is the username.
+         */
+        public final String groupMembershipFilter;
+
 	/**
 	 * If non-null, we use this and {@link #managerPassword}
 	 * when binding to LDAP.
@@ -226,7 +233,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String managerDN, String managerPassword) {
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -254,6 +261,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.userSearch = userSearch != null ? userSearch : "uid={0}";
 		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
 		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
+		this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
 
 		authorities = new GrantedAuthority[0];
 		authContext = new Hashtable<String, GrantedAuthority[]>();
@@ -291,6 +299,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	public String getGroupSearchFilter() {
 		return groupSearchFilter;
+	}
+
+	public String getGroupMembershipFilter() {
+		return groupMembershipFilter;
 	}
 
 	/**
@@ -471,6 +483,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ReverseProxyUserDetailsService(appContext));
 		} else {
 			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+
+		        if (groupMembershipFilter != null) {
+			        ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
+			        authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
+		        }
 
 			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
 		}
