@@ -208,8 +208,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	/**
 	 * The authorities that are granted to the authenticated user.
+	 * It is not necessary, that the authorities will be stored in the config.xml, they blow up the config.xml
 	 */
-	public GrantedAuthority[] authorities;
+	public transient GrantedAuthority[] authorities  = new GrantedAuthority[0];
 
 	/**
 	 * The name of the header which the username has to be extracted from.
