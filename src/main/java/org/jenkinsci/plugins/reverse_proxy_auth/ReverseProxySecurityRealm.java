@@ -119,6 +119,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
 	/**
+	 * Interval to check user authorities via LDAP.
+	 */
+	private static final int CHECK_INTERVAL = 15;
+	
+	/**
 	 * Scrambled password, used to first bind to LDAP.
 	 */
 	private final String managerPassword;
@@ -137,6 +142,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * Keeps the state of connected users and their granted authorities.
 	 */
 	private final Hashtable<String, GrantedAuthority[]> authContext;
+	
+	/**
+	 * Keeps the frequency which the authorities cache is updated per connected user.
+	 * The types String and Long are used for username and last time checked (in minutes) respectively.
+	 */
+	private Hashtable<String, Long> authorityUpdateCache;
 
 	/**
 	 * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
@@ -192,11 +203,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 */
 	public final String groupSearchFilter;
 
-        /**
-         * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
-         * is the user's full DN while {1} is the username.
-         */
-        public final String groupMembershipFilter;
+    /**
+      * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
+      * is the user's full DN while {1} is the username.
+      */
+     public final String groupMembershipFilter;
 
 	/**
 	 * If non-null, we use this and {@link #managerPassword}
@@ -206,6 +217,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 */
 	public final String managerDN;
 
+	/**
+	 * Sets an interval for updating the LDAP authorities. The interval is specified in minutes.
+	 */
+	public final int updateInterval;
+	
 	/**
 	 * The authorities that are granted to the authenticated user.
 	 * It is not necessary, that the authorities will be stored in the config.xml, they blow up the config.xml
@@ -234,7 +250,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword) {
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -264,8 +280,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
 		this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
 
+		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
+		
 		authorities = new GrantedAuthority[0];
 		authContext = new Hashtable<String, GrantedAuthority[]>();
+		authorityUpdateCache = new Hashtable<String, Long>();
 	}
 
 	/**
@@ -361,6 +380,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return Scrambler.descramble(managerPassword);
 	}
 
+	public int getUpdateInterval() {
+		return updateInterval;
+	}
+	
 	public String getLDAPURL() {
 		return toProviderUrl(getServerUrl(), fixNull(rootDN));
 	}
@@ -385,7 +408,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 						GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
 						if (storedGrants != null && storedGrants.length > 1) {
-							authorities = storedGrants;
+							authorities = retrieveAuthoritiesIfNecessary(userFromHeader, storedGrants);
 						} else {
 							try {
 								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
@@ -578,8 +601,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 				try {
 					InetAddress adrs = InetAddress.getByName(m.group(2));
-					int port = m.group(1)!=null ? 636 : 389;
-					if(m.group(3)!=null)
+					int port = m.group(1) != null ? 636 : 389;
+					if(m.group(3) != null)
 						port = Integer.parseInt(m.group(3));
 					Socket s = new Socket(adrs,port);
 					s.close();
@@ -626,6 +649,45 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 	}
 
+	private GrantedAuthority[] retrieveAuthoritiesIfNecessary(final String userFromHeader, final GrantedAuthority[] storedGrants) {
+		
+		GrantedAuthority[] authorities = storedGrants;
+		
+		if (getLDAPURL() != null) {
+			
+			long current = System.currentTimeMillis();
+			if (authorityUpdateCache != null && authorityUpdateCache.containsKey(userFromHeader)) {
+				long lastTime = authorityUpdateCache.get(userFromHeader);
+				
+				//Time in minutes since last occurrence
+				long check = (current - lastTime) / 1000 / 60;
+				if (check >= updateInterval) {
+					
+					LOGGER.log(Level.INFO, "The check interval reached the threshold of " + check + "min, will now update the authorities");
+					
+					LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
+					authorities = userDetails.getAuthorities();
+
+					Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+					tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+					authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+					
+					authorityUpdateCache.put(userFromHeader, current);
+					
+					LOGGER.log(Level.INFO, "Authorities for user "+userFromHeader+" have been updated.");
+				}
+			} else {
+				if (authorityUpdateCache == null) {
+					authorityUpdateCache = new Hashtable<String, Long>();
+				}
+				authorityUpdateCache.put(userFromHeader, current);
+			}
+
+		}
+		
+		return authorities;
+	}
+	
 	/**
 	 * If the given "server name" is just a host name (plus optional host name), add ldap:// prefix.
 	 * Otherwise assume it already contains the scheme, and leave it intact.

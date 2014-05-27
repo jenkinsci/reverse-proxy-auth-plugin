@@ -66,6 +66,9 @@ THE SOFTWARE.
          checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=password&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['ldap.managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.value)" 
       />
     </f:entry>
+    <f:entry title="${%Cache Update Interval}" >
+      <f:textbox name="updateInterval" value="${instance.updateInterval}" default="15"/>
+    </f:entry>
   </f:advanced>
   
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
