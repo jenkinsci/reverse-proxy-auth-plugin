@@ -399,10 +399,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 							throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
 
-				String userFromHeader = r.getHeader(forwardedUser);
+				String userFromHeader = null;
 
 				Authentication auth = Hudson.ANONYMOUS;
-				if (userFromHeader != null) {
+				if (forwardedUser != null
+                                        && (userFromHeader = r.getHeader(forwardedUser)) != null) {
 					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
 					if (getLDAPURL() != null) {
 
