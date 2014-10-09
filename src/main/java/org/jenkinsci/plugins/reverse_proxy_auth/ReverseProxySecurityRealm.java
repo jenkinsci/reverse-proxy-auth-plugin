@@ -30,6 +30,7 @@ import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
+import hudson.model.User;
 import hudson.security.GroupDetails;
 import hudson.security.UserMayOrMayNotExistException;
 import hudson.security.LDAPSecurityRealm;
@@ -72,6 +73,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 
 import jenkins.model.Jenkins;
+import jenkins.security.ApiTokenProperty;
 
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationManager;
@@ -399,12 +401,35 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 							throws IOException, ServletException {
 				HttpServletRequest r = (HttpServletRequest) request;
 
+			        String authorization = null;
+				String userFromApiToken = null;
+				if ((authorization = r.getHeader("Authorization")) != null) {
+					String uidpassword = Scrambler.descramble(authorization.substring(6));
+					int idx = uidpassword.indexOf(':');
+					if (idx >= 0) {
+					        String username = uidpassword.substring(0, idx);
+					        String password = uidpassword.substring(idx+1);
+
+						// attempt to authenticate as API token
+						User u = User.get(username);
+						ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
+						if (t != null && t.matchesPassword(password)) {
+						        userFromApiToken = username;
+						}
+					}
+				}
+
 				String userFromHeader = null;
 
 				Authentication auth = Hudson.ANONYMOUS;
-				if (forwardedUser != null
-                                        && (userFromHeader = r.getHeader(forwardedUser)) != null) {
+				if ((forwardedUser != null
+					 && (userFromHeader = r.getHeader(forwardedUser)) != null)
+					 || userFromApiToken != null) {
 					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
+				        if (userFromHeader == null && userFromApiToken != null) {
+					        userFromHeader = userFromApiToken;
+					}
+
 					if (getLDAPURL() != null) {
 
 						GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
