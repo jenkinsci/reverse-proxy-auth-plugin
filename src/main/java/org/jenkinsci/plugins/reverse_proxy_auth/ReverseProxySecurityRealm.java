@@ -403,7 +403,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 			        String authorization = null;
 				String userFromApiToken = null;
-				if ((authorization = r.getHeader("Authorization")) != null) {
+				if ((authorization = r.getHeader("Authorization")) != null && authorization.toLowerCase().startsWith("basic ")) {
 					String uidpassword = Scrambler.descramble(authorization.substring(6));
 					int idx = uidpassword.indexOf(':');
 					if (idx >= 0) {
@@ -411,7 +411,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					        String password = uidpassword.substring(idx+1);
 
 						// attempt to authenticate as API token
-						User u = User.get(username);
+						User u = User.get(username, false);
 						ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
 						if (t != null && t.matchesPassword(password)) {
 						        userFromApiToken = username;
