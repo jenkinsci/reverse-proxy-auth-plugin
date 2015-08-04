@@ -72,6 +72,8 @@ public class ProxyLDAPUserDetailsService implements UserDetailsService {
 
 			return ldapUser;
 		} catch (LdapDataAccessException e) {
+			// I'm thinking of adding retries here to mitigate transient LDAP
+			// issues.
 			LOGGER.log(Level.WARNING, "Failed to search LDAP for username="+username,e);
 			throw new UserMayOrMayNotExistException(e.getMessage(),e);
 		}
