@@ -33,6 +33,8 @@ import hudson.model.Hudson;
 import hudson.model.User;
 import hudson.security.GroupDetails;
 import hudson.security.UserMayOrMayNotExistException;
+import hudson.tasks.Mailer;
+import hudson.tasks.Mailer.UserProperty;
 import hudson.security.LDAPSecurityRealm;
 import hudson.security.SecurityRealm;
 import hudson.util.FormValidation;
@@ -250,9 +252,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 */
 	public final String headerGroupsDelimiter;
 
+    public final boolean disableLdapEmailResolver;
+
+    private final String displayNameLdapAttribute;
+
+    private final String emailAddressLdapAttribute;
+
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval) {
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -287,6 +295,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		authorities = new GrantedAuthority[0];
 		authContext = new Hashtable<String, GrantedAuthority[]>();
 		authorityUpdateCache = new Hashtable<String, Long>();
+
+		this.disableLdapEmailResolver = disableLdapEmailResolver;
+		this.displayNameLdapAttribute = displayNameLdapAttribute;
+		this.emailAddressLdapAttribute = emailAddressLdapAttribute;
 	}
 
 	/**
@@ -548,8 +560,54 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 */
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
-		return getSecurityComponents().userDetails.loadUserByUsername(username);
+		UserDetails userDetails = getSecurityComponents().userDetails.loadUserByUsername(username);
+        if (userDetails instanceof LdapUserDetails) {
+            updateLdapUserDetails((LdapUserDetails) userDetails);
+        }
+        return userDetails;
 	}
+
+    public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
+        LOGGER.log(Level.SEVERE, "displayNameLdapAttribute={}", displayNameLdapAttribute);
+        LOGGER.log(Level.SEVERE, "disableLdapEmailResolver={}",disableLdapEmailResolver);
+        LOGGER.log(Level.SEVERE, "emailAddressLdapAttribute={}",emailAddressLdapAttribute);
+        if (d.getAttributes() == null){
+            LOGGER.log(Level.SEVERE, "getAttributes is null");
+        } else {
+            hudson.model.User u = hudson.model.User.get(d.getUsername());
+            if (!StringUtils.isBlank(displayNameLdapAttribute)){
+                LOGGER.log(Level.SEVERE, "Getting user details from LDAP attributes");
+                try {
+                    Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
+                    String displayName = attribute == null ? null : (String) attribute.get();
+                    LOGGER.log(Level.SEVERE, "displayName is {}", displayName);
+                    if (StringUtils.isNotBlank(displayName)) {
+                        u.setFullName(displayName);
+                    }
+                } catch (NamingException e) {
+                    LOGGER.log(Level.FINEST, "Could not retrieve display name attribute", e);
+                }
+            }
+            if (!disableLdapEmailResolver && !StringUtils.isBlank(emailAddressLdapAttribute)) {
+                try {
+                    Attribute attribute = d.getAttributes().get(emailAddressLdapAttribute);
+                    String mailAddress = attribute == null ? null : (String) attribute.get();
+                    LOGGER.log(Level.SEVERE, "mailAddress is {}", mailAddress);
+                    if (StringUtils.isNotBlank(mailAddress)) {
+                        UserProperty existing = u.getProperty(UserProperty.class);
+                        if (existing == null || !existing.hasExplicitlyConfiguredAddress()){
+                            u.addProperty(new Mailer.UserProperty(mailAddress));
+                        }
+                    }
+                } catch (NamingException e) {
+                    LOGGER.log(Level.FINEST, "Could not retrieve email address attribute", e);
+                } catch (IOException e) {
+                    LOGGER.log(Level.WARNING, "Failed to associate the e-mail address", e);
+                }
+            }
+        }
+        return d;
+    }
 
 	@Override
 	@SuppressWarnings("unchecked")
