@@ -568,9 +568,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	}
 
     public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
-        LOGGER.log(Level.SEVERE, "displayNameLdapAttribute={}", displayNameLdapAttribute);
-        LOGGER.log(Level.SEVERE, "disableLdapEmailResolver={}",disableLdapEmailResolver);
-        LOGGER.log(Level.SEVERE, "emailAddressLdapAttribute={}",emailAddressLdapAttribute);
+        LOGGER.log(Level.SEVERE, "displayNameLdapAttribute" + displayNameLdapAttribute);
+        LOGGER.log(Level.SEVERE, "disableLdapEmailResolver" + disableLdapEmailResolver);
+        LOGGER.log(Level.SEVERE, "emailAddressLdapAttribute" + emailAddressLdapAttribute);
         if (d.getAttributes() == null){
             LOGGER.log(Level.SEVERE, "getAttributes is null");
         } else {
@@ -580,7 +580,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                 try {
                     Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
                     String displayName = attribute == null ? null : (String) attribute.get();
-                    LOGGER.log(Level.SEVERE, "displayName is {}", displayName);
+                    LOGGER.log(Level.SEVERE, "displayName is " + displayName);
                     if (StringUtils.isNotBlank(displayName)) {
                         u.setFullName(displayName);
                     }
@@ -592,10 +592,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                 try {
                     Attribute attribute = d.getAttributes().get(emailAddressLdapAttribute);
                     String mailAddress = attribute == null ? null : (String) attribute.get();
-                    LOGGER.log(Level.SEVERE, "mailAddress is {}", mailAddress);
                     if (StringUtils.isNotBlank(mailAddress)) {
+                        LOGGER.log(Level.SEVERE, "mailAddress is " + mailAddress);
                         UserProperty existing = u.getProperty(UserProperty.class);
                         if (existing == null || !existing.hasExplicitlyConfiguredAddress()){
+                            LOGGER.log(Level.SEVERE, "user mail address has been changed");
                             u.addProperty(new Mailer.UserProperty(mailAddress));
                         }
                     }
