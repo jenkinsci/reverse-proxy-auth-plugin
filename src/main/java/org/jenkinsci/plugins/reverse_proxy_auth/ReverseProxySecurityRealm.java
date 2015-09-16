@@ -338,7 +338,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String getGroupMembershipFilter() {
 		return groupMembershipFilter;
 	}
-
+	
+	public String getDisplayNameLdapAttribute() {
+		return displayNameLdapAttribute;
+	}
+	
+	public String getEmailAddressLdapAttribute() {
+		return emailAddressLdapAttribute;
+	}
+	
 	/**
 	 * Infer the root DN.
 	 *
