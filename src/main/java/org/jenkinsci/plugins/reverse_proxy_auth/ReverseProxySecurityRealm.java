@@ -338,7 +338,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String getGroupMembershipFilter() {
 		return groupMembershipFilter;
 	}
-
+	
+	public String getDisplayNameLdapAttribute() {
+		return displayNameLdapAttribute;
+	}
+	
+	public String getEmailAddressLdapAttribute() {
+		return emailAddressLdapAttribute;
+	}
+	
 	/**
 	 * Infer the root DN.
 	 *
@@ -568,19 +576,19 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	}
 
     public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
-        LOGGER.log(Level.SEVERE, "displayNameLdapAttribute" + displayNameLdapAttribute);
-        LOGGER.log(Level.SEVERE, "disableLdapEmailResolver" + disableLdapEmailResolver);
-        LOGGER.log(Level.SEVERE, "emailAddressLdapAttribute" + emailAddressLdapAttribute);
+        LOGGER.log(Level.FINEST, "displayNameLdapAttribute" + displayNameLdapAttribute);
+        LOGGER.log(Level.FINEST, "disableLdapEmailResolver" + disableLdapEmailResolver);
+        LOGGER.log(Level.FINEST, "emailAddressLdapAttribute" + emailAddressLdapAttribute);
         if (d.getAttributes() == null){
-            LOGGER.log(Level.SEVERE, "getAttributes is null");
+            LOGGER.log(Level.FINEST, "getAttributes is null");
         } else {
             hudson.model.User u = hudson.model.User.get(d.getUsername());
             if (!StringUtils.isBlank(displayNameLdapAttribute)){
-                LOGGER.log(Level.SEVERE, "Getting user details from LDAP attributes");
+                LOGGER.log(Level.FINEST, "Getting user details from LDAP attributes");
                 try {
                     Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
                     String displayName = attribute == null ? null : (String) attribute.get();
-                    LOGGER.log(Level.SEVERE, "displayName is " + displayName);
+                    LOGGER.log(Level.FINEST, "displayName is " + displayName);
                     if (StringUtils.isNotBlank(displayName)) {
                         u.setFullName(displayName);
                     }
@@ -593,10 +601,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                     Attribute attribute = d.getAttributes().get(emailAddressLdapAttribute);
                     String mailAddress = attribute == null ? null : (String) attribute.get();
                     if (StringUtils.isNotBlank(mailAddress)) {
-                        LOGGER.log(Level.SEVERE, "mailAddress is " + mailAddress);
+                        LOGGER.log(Level.FINEST, "mailAddress is " + mailAddress);
                         UserProperty existing = u.getProperty(UserProperty.class);
                         if (existing == null || !existing.hasExplicitlyConfiguredAddress()){
-                            LOGGER.log(Level.SEVERE, "user mail address has been changed");
+                            LOGGER.log(Level.FINEST, "user mail address has been changed");
                             u.addProperty(new Mailer.UserProperty(mailAddress));
                         }
                     }
