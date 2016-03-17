@@ -432,9 +432,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 						// attempt to authenticate as API token
 						User u = User.get(username, false);
-						ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
-						if (t != null && t.matchesPassword(password)) {
-						        userFromApiToken = username;
+						if (u != null) {
+							ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
+							if (t != null && t.matchesPassword(password)) {
+							        userFromApiToken = username;
+							}
 						}
 					}
 				}
