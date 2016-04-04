@@ -56,6 +56,9 @@ THE SOFTWARE.
     <f:entry title="${%Group membership filter}" >
       <f:textbox name="ldap.groupMembershipFilter" value="${instance.groupMembershipFilter}" />
     </f:entry>
+    <f:entry title="${%Group name attribute instead of CN}" >
+      <f:textbox name="ldap.groupNameAttribute" value="${instance.groupNameAttribute}" />
+    </f:entry>
     <f:entry title="${%Manager DN}" >
       <f:textbox name="managerDN" value="${instance.managerDN}" autocomplete="off"
          checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=managerDN&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['ldap.managerPassword'].value)"
