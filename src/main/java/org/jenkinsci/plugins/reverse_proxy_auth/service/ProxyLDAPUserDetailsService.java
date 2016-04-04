@@ -59,7 +59,7 @@ public class ProxyLDAPUserDetailsService implements UserDetailsService {
 
 					// intern attributes
 					Attributes v = ldapUser.getAttributes();
-					if (v instanceof BasicAttributes) {// BasicAttributes.equals is what makes the interning possible
+					if (v instanceof BasicAttributes) { // BasicAttributes.equals is what makes the interning possible
 						synchronized (attributesCache) {
 							Attributes vv = (Attributes)attributesCache.get(v);
 							if (vv==null)   attributesCache.put(v,vv=v);

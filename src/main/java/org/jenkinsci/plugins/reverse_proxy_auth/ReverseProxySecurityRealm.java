@@ -460,12 +460,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				String userFromHeader = null;
 
 				Authentication auth = Hudson.ANONYMOUS;
-				if ((forwardedUser != null
-					 && (userFromHeader = r.getHeader(forwardedUser)) != null)
-					 || userFromApiToken != null) {
-					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
-				        if (userFromHeader == null && userFromApiToken != null) {
-					        userFromHeader = userFromApiToken;
+				if ((forwardedUser != null && (userFromHeader = r.getHeader(forwardedUser)) != null) || userFromApiToken != null) {
+					LOGGER.log(Level.FINE, "USER LOGGED IN: {0}", userFromHeader);
+			        if (userFromHeader == null && userFromApiToken != null) {
+				        userFromHeader = userFromApiToken;
 					}
 
 					if (getLDAPURL() != null) {
@@ -606,7 +604,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             LOGGER.log(Level.FINEST, "getAttributes is null");
         } else {
             hudson.model.User u = hudson.model.User.get(d.getUsername());
-            if (!StringUtils.isBlank(displayNameLdapAttribute)){
+            if (!StringUtils.isBlank(displayNameLdapAttribute)) {
                 LOGGER.log(Level.FINEST, "Getting user details from LDAP attributes");
                 try {
                     Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
@@ -690,16 +688,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				@QueryParameter final String managerDN,
 				@QueryParameter final String managerPassword) {
 
-			if(!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER))
+			if (!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER)) {
 				return FormValidation.ok();
+			}
 
 			try {
 				Hashtable<String,String> props = new Hashtable<String,String>();
-				if(managerDN!=null && managerDN.trim().length() > 0  && !"undefined".equals(managerDN)) {
-					props.put(Context.SECURITY_PRINCIPAL,managerDN);
+				if (managerDN != null && managerDN.trim().length() > 0 && !"undefined".equals(managerDN)) {
+					props.put(Context.SECURITY_PRINCIPAL, managerDN);
 				}
-				if(managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
-					props.put(Context.SECURITY_CREDENTIALS,managerPassword);
+				if (managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
+					props.put(Context.SECURITY_CREDENTIALS, managerPassword);
 				}
 
 				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
@@ -790,7 +789,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					
 					authorityUpdateCache.put(userFromHeader, current);
 					
-					LOGGER.log(Level.INFO, "Authorities for user "+userFromHeader+" have been updated.");
+					LOGGER.log(Level.INFO, "Authorities for user " + userFromHeader + " have been updated.");
 				}
 			} else {
 				if (authorityUpdateCache == null) {

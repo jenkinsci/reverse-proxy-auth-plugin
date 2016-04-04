@@ -44,8 +44,7 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
 	}
 
 	@Override
-	protected Set<GrantedAuthority> getAdditionalRoles(
-			ReverseProxyUserDetails proxyUser) {
+	protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
 		return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY);
 	}
 
@@ -71,8 +70,7 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
 	@Override
 	public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
 
-		Set<GrantedAuthority> names = super
-				.getGroupMembershipRoles(username);
+		Set<GrantedAuthority> names = super.getGroupMembershipRoles(username);
 
 		Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
 		groupRoles.addAll(names);
