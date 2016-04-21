@@ -102,6 +102,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopu
 import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -258,8 +259,13 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     private final String emailAddressLdapAttribute;
 
+	/**
+	 * Custom post logout url
+	 */
+	public final String customLogOutUrl;
+
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
+	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
 			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
@@ -271,6 +277,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			this.headerGroupsDelimiter = "|";
 		}
 		//
+		if(!StringUtils.isBlank(customLogOutUrl)) {
+			this.customLogOutUrl = customLogOutUrl;
+		} else {
+			this.customLogOutUrl = null;
+		}
 		this.server = fixEmptyAndTrim(server);
 		this.managerDN = fixEmpty(managerDN);
 		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
@@ -523,7 +534,20 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@Override
 	public boolean canLogOut() {
-		return false;
+		if (customLogOutUrl == null) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	@Override
+	public String getPostLogOutUrl(StaplerRequest req, Authentication auth) {
+		if (customLogOutUrl == null) {
+			return super.getPostLogOutUrl(req, auth);
+		} else {
+			return customLogOutUrl;
+		}
 	}
 
 	@Override

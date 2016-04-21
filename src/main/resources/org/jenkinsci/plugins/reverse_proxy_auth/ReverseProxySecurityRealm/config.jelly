@@ -33,6 +33,9 @@ THE SOFTWARE.
     <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
   <f:advanced>  
+    <f:entry title="${%Custom Log Out URL}" >
+      <f:textbox name="customLogOutUrl" value="${instance.customLogOutUrl}" />
+    </f:entry>
 	<f:entry title="${%Server}" >
 	  <f:textbox name="server" value="${instance.server}"
             checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=server&amp;server='+encodeURIComponent(this.value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['managerPassword'].value)"/>
