@@ -213,6 +213,13 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
       */
      public final String groupMembershipFilter;
 
+     /**
+      * Attribute that should be used instead of CN as name to match a users group name to the groupSearchFilter name.
+      * When {@link #groupSearchFilter} is set to search for a field other than CN e.g. <code>GroupDisplayName={0}</code> 
+      * here you can configure that this (<code>GroupDisplayName</code>) or another field should be used when looking for a users groups.
+      */
+     public String groupNameAttribute;
+
 	/**
 	 * If non-null, we use this and {@link #managerPassword}
 	 * when binding to LDAP.
@@ -260,7 +267,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
+			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -270,7 +278,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		} else {
 			this.headerGroupsDelimiter = "|";
 		}
-		//
 		this.server = fixEmptyAndTrim(server);
 		this.managerDN = fixEmpty(managerDN);
 		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
@@ -289,6 +296,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
 		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
 		this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
+		this.groupNameAttribute = fixEmptyAndTrim(groupNameAttribute);
 
 		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
 		
@@ -337,6 +345,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	public String getGroupMembershipFilter() {
 		return groupMembershipFilter;
+	}
+	
+	public String getGroupNameAttribute() {
+		return groupNameAttribute;
+	}
+	
+	public void setGroupNameAttribute(String groupNameAttribute) {
+		this.groupNameAttribute = groupNameAttribute;
 	}
 	
 	public String getDisplayNameLdapAttribute() {
@@ -444,12 +460,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				String userFromHeader = null;
 
 				Authentication auth = Hudson.ANONYMOUS;
-				if ((forwardedUser != null
-					 && (userFromHeader = r.getHeader(forwardedUser)) != null)
-					 || userFromApiToken != null) {
-					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
-				        if (userFromHeader == null && userFromApiToken != null) {
-					        userFromHeader = userFromApiToken;
+				if ((forwardedUser != null && (userFromHeader = r.getHeader(forwardedUser)) != null) || userFromApiToken != null) {
+					LOGGER.log(Level.FINE, "USER LOGGED IN: {0}", userFromHeader);
+			        if (userFromHeader == null && userFromApiToken != null) {
+				        userFromHeader = userFromApiToken;
 					}
 
 					if (getLDAPURL() != null) {
@@ -556,10 +570,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		} else {
 			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
 
+			if (groupMembershipFilter != null || groupNameAttribute != null) {
+				ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
 		        if (groupMembershipFilter != null) {
-			        ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
 			        authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
 		        }
+		        if (groupNameAttribute != null) {					
+		        	authoritiesPopulator.setGroupRoleAttribute(groupNameAttribute);
+				}
+			}
 
 			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
 		}
@@ -585,7 +604,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             LOGGER.log(Level.FINEST, "getAttributes is null");
         } else {
             hudson.model.User u = hudson.model.User.get(d.getUsername());
-            if (!StringUtils.isBlank(displayNameLdapAttribute)){
+            if (!StringUtils.isBlank(displayNameLdapAttribute)) {
                 LOGGER.log(Level.FINEST, "Getting user details from LDAP attributes");
                 try {
                     Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
@@ -669,16 +688,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				@QueryParameter final String managerDN,
 				@QueryParameter final String managerPassword) {
 
-			if(!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER))
+			if (!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER)) {
 				return FormValidation.ok();
+			}
 
 			try {
 				Hashtable<String,String> props = new Hashtable<String,String>();
-				if(managerDN!=null && managerDN.trim().length() > 0  && !"undefined".equals(managerDN)) {
-					props.put(Context.SECURITY_PRINCIPAL,managerDN);
+				if (managerDN != null && managerDN.trim().length() > 0 && !"undefined".equals(managerDN)) {
+					props.put(Context.SECURITY_PRINCIPAL, managerDN);
 				}
-				if(managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
-					props.put(Context.SECURITY_CREDENTIALS,managerPassword);
+				if (managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
+					props.put(Context.SECURITY_CREDENTIALS, managerPassword);
 				}
 
 				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
@@ -769,7 +789,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					
 					authorityUpdateCache.put(userFromHeader, current);
 					
-					LOGGER.log(Level.INFO, "Authorities for user "+userFromHeader+" have been updated.");
+					LOGGER.log(Level.INFO, "Authorities for user " + userFromHeader + " have been updated.");
 				}
 			} else {
 				if (authorityUpdateCache == null) {

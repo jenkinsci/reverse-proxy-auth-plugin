@@ -55,8 +55,8 @@ public class ProxyLDAPAuthoritiesPopulator extends DefaultLdapAuthoritiesPopulat
 	 */
 	@Override
 	@SuppressWarnings("unchecked")
-	public Set getGroupMembershipRoles(String userDn, String username) {
-		Set<GrantedAuthority> names = super.getGroupMembershipRoles(userDn,username);
+	public Set<GrantedAuthority> getGroupMembershipRoles(String userDn, String username) {
+		Set<GrantedAuthority> names = super.getGroupMembershipRoles(userDn, username);
 
 		Set<GrantedAuthority> r = new HashSet<GrantedAuthority>(names.size()*2);
 		r.addAll(names);
