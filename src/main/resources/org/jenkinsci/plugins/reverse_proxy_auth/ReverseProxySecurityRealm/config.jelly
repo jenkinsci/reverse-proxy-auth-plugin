@@ -33,6 +33,9 @@ THE SOFTWARE.
     <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
   <f:advanced>  
+    <f:entry title="${%Custom Log In URL}" >
+      <f:textbox name="customLogInUrl" value="${instance.customLogInUrl}" />
+    </f:entry>
     <f:entry title="${%Custom Log Out URL}" >
       <f:textbox name="customLogOutUrl" value="${instance.customLogOutUrl}" />
     </f:entry>
