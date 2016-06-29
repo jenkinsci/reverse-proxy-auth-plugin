@@ -1,2 +1,5 @@
-<!-- no login link -->
-<j:jelly xmlns:j="jelly:core" />
+<j:jelly xmlns:j="jelly:core">
+  <j:if test="${it.customLogInUrl != null}">
+    <a href="${it.customLogInUrl}"><b>${%login}</b></a>
+  </j:if>
+</j:jelly>

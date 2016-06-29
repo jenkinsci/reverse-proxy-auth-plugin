@@ -269,10 +269,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * Custom post logout url
 	 */
+	public final String customLogInUrl;
 	public final String customLogOutUrl;
 
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
+	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
 			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
@@ -283,6 +284,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
 		} else {
 			this.headerGroupsDelimiter = "|";
+		}
+
+		if(!StringUtils.isBlank(customLogInUrl)) {
+			this.customLogInUrl = customLogInUrl;
+		} else {
+			this.customLogInUrl = null;
 		}
 
 		if(!StringUtils.isBlank(customLogOutUrl)) {
