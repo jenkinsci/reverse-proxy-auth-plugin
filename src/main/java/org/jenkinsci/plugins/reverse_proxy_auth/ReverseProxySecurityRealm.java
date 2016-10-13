@@ -31,12 +31,9 @@ import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
 import hudson.model.User;
-import hudson.security.GroupDetails;
-import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.*;
 import hudson.tasks.Mailer;
 import hudson.tasks.Mailer.UserProperty;
-import hudson.security.LDAPSecurityRealm;
-import hudson.security.SecurityRealm;
 import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.spring.BeanBuilder;
@@ -448,7 +445,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@Override
 	public Filter createFilter(FilterConfig filterConfig) {
-		return new Filter() {
+		Filter filter = new Filter() {
 			public void init(FilterConfig filterConfig) throws ServletException {
 			}
 
@@ -553,6 +550,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			public void destroy() {
 			}
 		};
+		Filter defaultFilter = super.createFilter(filterConfig);
+		return new ChainedServletFilter(filter, defaultFilter);
 	}
 
 	@Override
