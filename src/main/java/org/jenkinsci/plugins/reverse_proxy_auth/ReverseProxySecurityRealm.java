@@ -146,13 +146,13 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * Keeps the state of connected users and their granted authorities.
 	 */
-	private final Hashtable<String, GrantedAuthority[]> authContext;
+	private transient Hashtable<String, GrantedAuthority[]> authContext;
 	
 	/**
 	 * Keeps the frequency which the authorities cache is updated per connected user.
 	 * The types String and Long are used for username and last time checked (in minutes) respectively.
 	 */
-	private Hashtable<String, Long> authorityUpdateCache;
+	private transient Hashtable<String, Long> authorityUpdateCache;
 
 	/**
 	 * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
@@ -321,8 +321,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
 		
 		authorities = new GrantedAuthority[0];
-		authContext = new Hashtable<String, GrantedAuthority[]>();
-		authorityUpdateCache = new Hashtable<String, Long>();
 
 		this.disableLdapEmailResolver = disableLdapEmailResolver;
 		this.displayNameLdapAttribute = displayNameLdapAttribute;
@@ -485,6 +483,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			        if (userFromHeader == null && userFromApiToken != null) {
 				        userFromHeader = userFromApiToken;
 					}
+
+                    if (authContext == null) {
+                        authContext = new Hashtable<String, GrantedAuthority[]>();
+                    }
 
 					if (getLDAPURL() != null) {
 
@@ -685,7 +687,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			groups = ldapTemplate.searchForSingleAttributeValues(searchBase, searchFilter, new String[]{groupname}, "cn");
 		} else {
 			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-			GrantedAuthority[] authorities = authContext.get(auth.getName());
+			GrantedAuthority[] authorities = authContext != null ? authContext.get(auth.getName()) : null;
 
 			SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
 
