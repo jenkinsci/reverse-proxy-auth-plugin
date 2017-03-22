@@ -30,6 +30,7 @@ import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
+import hudson.model.UserPropertyDescriptor;
 import hudson.model.User;
 import hudson.security.GroupDetails;
 import hudson.security.UserMayOrMayNotExistException;
@@ -93,6 +94,7 @@ import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.apache.commons.io.input.AutoCloseInputStream;
 import org.apache.commons.lang.StringUtils;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.ForwardedUserData;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
@@ -110,147 +112,157 @@ import org.springframework.web.context.WebApplicationContext;
  */
 public class ReverseProxySecurityRealm extends SecurityRealm {
 
-	private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
-
-	/**
-	 * LDAP filter to look for groups by their names.
-	 *
-	 * "{0}" is the group name as given by the user.
-	 * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
-	 * WANTED: The specification of the syntax.
-	 */
-	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
-			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
-
-	/**
-	 * Interval to check user authorities via LDAP.
-	 */
-	private static final int CHECK_INTERVAL = 15;
-	
-	/**
-	 * Scrambled password, used to first bind to LDAP.
-	 */
-	private final String managerPassword;
-
-	/**
-	 * Search Template used when the groups are in the header.
-	 */
-	private ReverseProxySearchTemplate proxyTemplate;
-
-	/**
-	 * Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP.
-	 */
-	private transient LdapTemplate ldapTemplate;
-
-	/**
-	 * Keeps the state of connected users and their granted authorities.
-	 */
-	private final Hashtable<String, GrantedAuthority[]> authContext;
-	
-	/**
-	 * Keeps the frequency which the authorities cache is updated per connected user.
-	 * The types String and Long are used for username and last time checked (in minutes) respectively.
-	 */
-	private Hashtable<String, Long> authorityUpdateCache;
-
-	/**
-	 * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
-	 * or "ldap.acme.org:389" and/or with protcol, like "ldap://ldap.acme.org".
-	 */
-	public final String server;
-
-	/**
-	 * The root DN to connect to. Normally something like "dc=sun,dc=com"
-	 *
-	 * How do I infer this?
-	 */
-	public final String rootDN;
-
-	/**
-	 * Allow the rootDN to be inferred? Default is false.
-	 * If true, allow rootDN to be blank.
-	 */
-	public final boolean inhibitInferRootDN;
-
-	/**
-	 * Specifies the relative DN from {@link #rootDN the root DN}.
-	 * This is used to narrow down the search space when doing user search.
-	 *
-	 * Something like "ou=people" but can be empty.
-	 */
-	public final String userSearchBase;
-
-	/**
-	 * Query to locate an entry that identifies the user, given the user name string.
-	 *
-	 * Normally "uid={0}"
-	 *
-	 * @see FilterBasedLdapUserSearch
-	 */
-	public final String userSearch;
-
-	/**
-	 * This defines the organizational unit that contains groups.
-	 *
-	 * Normally "" to indicate the full LDAP search, but can be often narrowed down to
-	 * something like "ou=groups"
-	 *
-	 * @see FilterBasedLdapUserSearch
-	 */
-	public final String groupSearchBase;
-
-	/**
-	 * Query to locate an entry that identifies the group, given the group name string. If non-null it will override
-	 * the default specified by {@link #GROUP_SEARCH}
-	 *
-	 * @since 1.5
-	 */
-	public final String groupSearchFilter;
+    private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
 
     /**
-      * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
-      * is the user's full DN while {1} is the username.
-      */
-     public final String groupMembershipFilter;
+     * LDAP filter to look for groups by their names.
+     *
+     * "{0}" is the group name as given by the user.
+     * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
+     * WANTED: The specification of the syntax.
+     */
+    public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
+            "(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
-	/**
-	 * If non-null, we use this and {@link #managerPassword}
-	 * when binding to LDAP.
-	 *
-	 * This is necessary when LDAP doesn't support anonymous access.
-	 */
-	public final String managerDN;
+    /**
+     * Interval to check user authorities via LDAP.
+     */
+    private static final int CHECK_INTERVAL = 15;
 
-	/**
-	 * Sets an interval for updating the LDAP authorities. The interval is specified in minutes.
-	 */
-	public final int updateInterval;
-	
-	/**
-	 * The authorities that are granted to the authenticated user.
-	 * It is not necessary, that the authorities will be stored in the config.xml, they blow up the config.xml
-	 */
-	public transient GrantedAuthority[] authorities  = new GrantedAuthority[0];
+    /**
+     * Scrambled password, used to first bind to LDAP.
+     */
+    private final String managerPassword;
 
-	/**
-	 * The name of the header which the username has to be extracted from.
-	 */
-	public final String forwardedUser;
-	
-	/**
-	 * The username retrieved from the header field, which is represented by the forwardedUser attribute.
-	 */
-	public String retrievedUser;
+    /**
+     * Search Template used when the groups are in the header.
+     */
+    private ReverseProxySearchTemplate proxyTemplate;
 
-	/**
-	 * Header name of the groups field.
-	 */
-	public final String headerGroups;
+    /**
+     * Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP.
+     */
+    private transient LdapTemplate ldapTemplate;
 
-	/**
-	 * Header name of the groups delimiter field.
-	 */
-	public final String headerGroupsDelimiter;
+    /**
+     * Keeps the state of connected users and their granted authorities.
+     */
+    private final Hashtable<String, GrantedAuthority[]> authContext;
+
+    /**
+     * Keeps the frequency which the authorities cache is updated per connected user.
+     * The types String and Long are used for username and last time checked (in minutes) respectively.
+     */
+    private Hashtable<String, Long> authorityUpdateCache;
+
+    /**
+     * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
+     * or "ldap.acme.org:389" and/or with protcol, like "ldap://ldap.acme.org".
+     */
+    public final String server;
+
+    /**
+     * The root DN to connect to. Normally something like "dc=sun,dc=com"
+     *
+     * How do I infer this?
+     */
+    public final String rootDN;
+
+    /**
+     * Allow the rootDN to be inferred? Default is false.
+     * If true, allow rootDN to be blank.
+     */
+    public final boolean inhibitInferRootDN;
+
+    /**
+     * Specifies the relative DN from {@link #rootDN the root DN}.
+     * This is used to narrow down the search space when doing user search.
+     *
+     * Something like "ou=people" but can be empty.
+     */
+    public final String userSearchBase;
+
+    /**
+     * Query to locate an entry that identifies the user, given the user name string.
+     *
+     * Normally "uid={0}"
+     *
+     * @see FilterBasedLdapUserSearch
+     */
+    public final String userSearch;
+
+    /**
+     * This defines the organizational unit that contains groups.
+     *
+     * Normally "" to indicate the full LDAP search, but can be often narrowed down to
+     * something like "ou=groups"
+     *
+     * @see FilterBasedLdapUserSearch
+     */
+    public final String groupSearchBase;
+
+    /**
+     * Query to locate an entry that identifies the group, given the group name string. If non-null it will override
+     * the default specified by {@link #GROUP_SEARCH}
+     *
+     * @since 1.5
+     */
+    public final String groupSearchFilter;
+
+    /**
+     * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
+     * is the user's full DN while {1} is the username.
+     */
+    public final String groupMembershipFilter;
+
+    /**
+     * If non-null, we use this and {@link #managerPassword}
+     * when binding to LDAP.
+     *
+     * This is necessary when LDAP doesn't support anonymous access.
+     */
+    public final String managerDN;
+
+    /**
+     * Sets an interval for updating the LDAP authorities. The interval is specified in minutes.
+     */
+    public final int updateInterval;
+
+    /**
+     * The authorities that are granted to the authenticated user.
+     * It is not necessary, that the authorities will be stored in the config.xml, they blow up the config.xml
+     */
+    public transient GrantedAuthority[] authorities  = new GrantedAuthority[0];
+
+    /**
+     * The name of the header which the username has to be extracted from.
+     */
+    public final String forwardedUser;
+
+    /**
+     * The username retrieved from the header field, which is represented by the forwardedUser attribute.
+     */
+    public String retrievedUser;
+
+    /**
+     * The name of the header which the email has to be extracted from.
+     */
+    public final String forwardedEmail;
+
+    /**
+     * The name of the header which the display name has to be extracted from.
+     */
+    public final String forwardedDisplayName;
+
+    /**
+     * Header name of the groups field.
+     */
+    public final String headerGroups;
+
+    /**
+     * Header name of the groups delimiter field.
+     */
+    public final String headerGroupsDelimiter;
 
     public final boolean disableLdapEmailResolver;
 
@@ -258,322 +270,357 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     private final String emailAddressLdapAttribute;
 
-	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String managerDN, String managerPassword, Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
+    @DataBoundConstructor
+    public ReverseProxySecurityRealm(
+            String forwardedUser,
+            String forwardedEmail, 
+            String forwardedDisplayName, 
+            String headerGroups, 
+            String headerGroupsDelimiter, 
+            String server, 
+            String rootDN, 
+            boolean inhibitInferRootDN,
+            String userSearchBase, 
+            String userSearch, 
+            String groupSearchBase, 
+            String groupSearchFilter, 
+            String groupMembershipFilter, 
+            String managerDN, 
+            String managerPassword, 
+            Integer updateInterval, 
+            boolean disableLdapEmailResolver, 
+            String displayNameLdapAttribute, 
+            String emailAddressLdapAttribute) {
 
-		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+        this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+        this.forwardedEmail = forwardedEmail;
+        this.forwardedDisplayName = forwardedDisplayName;
 
-		this.headerGroups = headerGroups;
-		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
-			this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
-		} else {
-			this.headerGroupsDelimiter = "|";
-		}
-		//
-		this.server = fixEmptyAndTrim(server);
-		this.managerDN = fixEmpty(managerDN);
-		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
-		this.inhibitInferRootDN = inhibitInferRootDN;
+        this.headerGroups = headerGroups;
+        if (!StringUtils.isBlank(headerGroupsDelimiter)) {
+            this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
+        } else {
+            this.headerGroupsDelimiter = "|";
+        }
+        //
+        this.server = fixEmptyAndTrim(server);
+        this.managerDN = fixEmpty(managerDN);
+        this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
+        this.inhibitInferRootDN = inhibitInferRootDN;
 
-		if (this.server != null) {
-			if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
-			this.rootDN = rootDN.trim();
-		} else {
-			this.rootDN = null;
-		}
+        if (this.server != null) {
+            if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
+            this.rootDN = rootDN.trim();
+        } else {
+            this.rootDN = null;
+        }
 
-		this.userSearchBase = fixNull(userSearchBase).trim();
-		userSearch = fixEmptyAndTrim(userSearch);
-		this.userSearch = userSearch != null ? userSearch : "uid={0}";
-		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
-		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
-		this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
+        this.userSearchBase = fixNull(userSearchBase).trim();
+        userSearch = fixEmptyAndTrim(userSearch);
+        this.userSearch = userSearch != null ? userSearch : "uid={0}";
+        this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
+        this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
+        this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
 
-		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
-		
-		authorities = new GrantedAuthority[0];
-		authContext = new Hashtable<String, GrantedAuthority[]>();
-		authorityUpdateCache = new Hashtable<String, Long>();
+        this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
 
-		this.disableLdapEmailResolver = disableLdapEmailResolver;
-		this.displayNameLdapAttribute = displayNameLdapAttribute;
-		this.emailAddressLdapAttribute = emailAddressLdapAttribute;
-	}
+        authorities = new GrantedAuthority[0];
+        authContext = new Hashtable<String, GrantedAuthority[]>();
+        authorityUpdateCache = new Hashtable<String, Long>();
 
-	/**
-	 * Name of the HTTP header to look at.
-	 */
-	public String getForwardedUser() {
-		return forwardedUser;
-	}
+        this.disableLdapEmailResolver = disableLdapEmailResolver;
+        this.displayNameLdapAttribute = displayNameLdapAttribute;
+        this.emailAddressLdapAttribute = emailAddressLdapAttribute;
+    }
 
-	public String getHeaderGroups() {
-		return headerGroups;
-	}
+    /**
+     * Name of the HTTP header to look at.
+     */
+    public String getForwardedUser() {
+        return forwardedUser;
+    }
 
-	public String getHeaderGroupsDelimiter() {
-		return headerGroupsDelimiter;
-	}
+    public String getHeaderGroups() {
+        return headerGroups;
+    }
 
-	public String getServerUrl() {
-		if (server == null) {
-			return null;
-		}
-		StringBuilder buf = new StringBuilder();
-		boolean first = true;
+    public String getHeaderGroupsDelimiter() {
+        return headerGroupsDelimiter;
+    }
 
-		for (String s: server.split("\\s+")) {
-			if (s.trim().length() == 0) continue;
-			if (first) first = false; else buf.append(' ');
-			buf.append(addPrefix(s));
-		}
-		return buf.toString();
-	}
+    public String getServerUrl() {
+        if (server == null) {
+            return null;
+        }
+        StringBuilder buf = new StringBuilder();
+        boolean first = true;
 
-	public String getGroupSearchFilter() {
-		return groupSearchFilter;
-	}
+        for (String s: server.split("\\s+")) {
+            if (s.trim().length() == 0) continue;
+            if (first) first = false; else buf.append(' ');
+            buf.append(addPrefix(s));
+        }
+        return buf.toString();
+    }
 
-	public String getGroupMembershipFilter() {
-		return groupMembershipFilter;
-	}
-	
-	public String getDisplayNameLdapAttribute() {
-		return displayNameLdapAttribute;
-	}
-	
-	public String getEmailAddressLdapAttribute() {
-		return emailAddressLdapAttribute;
-	}
-	
-	/**
-	 * Infer the root DN.
-	 *
-	 * @return null if not found.
-	 */
-	private String inferRootDN(String server) {
-		try {
-			Hashtable<String,String> props = new Hashtable<String,String>();
-			if(managerDN != null) {
-				props.put(Context.SECURITY_PRINCIPAL, managerDN);
-				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
-			}
-			props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-			props.put(Context.PROVIDER_URL, toProviderUrl(fixNull(getServerUrl()), ""));
+    public String getGroupSearchFilter() {
+        return groupSearchFilter;
+    }
 
-			DirContext ctx = new InitialDirContext(props);
-			Attributes atts = ctx.getAttributes("");
-			Attribute a = atts.get("defaultNamingContext");
-			if(a != null && a.get() != null) { // this entry is available on Active Directory. See http://msdn2.microsoft.com/en-us/library/ms684291(VS.85).aspx
-				return a.get().toString();
-			}
+    public String getGroupMembershipFilter() {
+        return groupMembershipFilter;
+    }
 
-			a = atts.get("namingcontexts");
-			if(a == null) {
-				LOGGER.warning("namingcontexts attribute not found in root DSE of " + server);
-				return null;
-			}
-			return a.get().toString();
-		} catch (NamingException e) {
-			LOGGER.log(Level.WARNING,"Failed to connect to LDAP to infer Root DN for "+server,e);
-			return null;
-		}
-	}
+    public String getDisplayNameLdapAttribute() {
+        return displayNameLdapAttribute;
+    }
 
-	public static String toProviderUrl(String serverUrl, String rootDN) {
-		if (serverUrl == null) {
-			return null;
-		}
-		StringBuilder buf = new StringBuilder();
-		boolean first = true;
-		for (String s: serverUrl.split("\\s+")) {
-			if (s.trim().length() == 0) continue;
-			if (first) first = false; else buf.append(' ');
-			s = addPrefix(s);
-			buf.append(s);
-			if (!s.endsWith("/")) buf.append('/');
-			buf.append(fixNull(rootDN));
-		}
-		return buf.toString();
-	}
+    public String getEmailAddressLdapAttribute() {
+        return emailAddressLdapAttribute;
+    }
 
-	public String getManagerPassword() {
-		return Scrambler.descramble(managerPassword);
-	}
+    /**
+     * Infer the root DN.
+     *
+     * @return null if not found.
+     */
+    private String inferRootDN(String server) {
+        try {
+            Hashtable<String,String> props = new Hashtable<String,String>();
+            if(managerDN != null) {
+                props.put(Context.SECURITY_PRINCIPAL, managerDN);
+                props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
+            }
+            props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+            props.put(Context.PROVIDER_URL, toProviderUrl(fixNull(getServerUrl()), ""));
 
-	public int getUpdateInterval() {
-		return updateInterval;
-	}
-	
-	public String getLDAPURL() {
-		return toProviderUrl(getServerUrl(), fixNull(rootDN));
-	}
+            DirContext ctx = new InitialDirContext(props);
+            Attributes atts = ctx.getAttributes("");
+            Attribute a = atts.get("defaultNamingContext");
+            if(a != null && a.get() != null) { // this entry is available on Active Directory. See http://msdn2.microsoft.com/en-us/library/ms684291(VS.85).aspx
+                return a.get().toString();
+            }
 
-	@Override
-	public Filter createFilter(FilterConfig filterConfig) {
-		return new Filter() {
-			public void init(FilterConfig filterConfig) throws ServletException {
-			}
+            a = atts.get("namingcontexts");
+            if(a == null) {
+                LOGGER.warning("namingcontexts attribute not found in root DSE of " + server);
+                return null;
+            }
+            return a.get().toString();
+        } catch (NamingException e) {
+            LOGGER.log(Level.WARNING,"Failed to connect to LDAP to infer Root DN for "+server,e);
+            return null;
+        }
+    }
 
-			public void doFilter(ServletRequest request,
-					ServletResponse response, FilterChain chain)
-							throws IOException, ServletException {
-				HttpServletRequest r = (HttpServletRequest) request;
+    public static String toProviderUrl(String serverUrl, String rootDN) {
+        if (serverUrl == null) {
+            return null;
+        }
+        StringBuilder buf = new StringBuilder();
+        boolean first = true;
+        for (String s: serverUrl.split("\\s+")) {
+            if (s.trim().length() == 0) continue;
+            if (first) first = false; else buf.append(' ');
+            s = addPrefix(s);
+            buf.append(s);
+            if (!s.endsWith("/")) buf.append('/');
+            buf.append(fixNull(rootDN));
+        }
+        return buf.toString();
+    }
 
-			        String authorization = null;
-				String userFromApiToken = null;
-				if ((authorization = r.getHeader("Authorization")) != null && authorization.toLowerCase().startsWith("basic ")) {
-					String uidpassword = Scrambler.descramble(authorization.substring(6));
-					int idx = uidpassword.indexOf(':');
-					if (idx >= 0) {
-					        String username = uidpassword.substring(0, idx);
-					        String password = uidpassword.substring(idx+1);
+    public String getManagerPassword() {
+        return Scrambler.descramble(managerPassword);
+    }
 
-						// attempt to authenticate as API token
-						User u = User.get(username, false);
-						ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
-						if (t != null && t.matchesPassword(password)) {
-						        userFromApiToken = username;
-						}
-					}
-				}
+    public int getUpdateInterval() {
+        return updateInterval;
+    }
 
-				String userFromHeader = null;
+    public String getLDAPURL() {
+        return toProviderUrl(getServerUrl(), fixNull(rootDN));
+    }
 
-				Authentication auth = Hudson.ANONYMOUS;
-				if ((forwardedUser != null
-					 && (userFromHeader = r.getHeader(forwardedUser)) != null)
-					 || userFromApiToken != null) {
-					//LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
-				        if (userFromHeader == null && userFromApiToken != null) {
-					        userFromHeader = userFromApiToken;
-					}
+    @Override
+    public Filter createFilter(FilterConfig filterConfig) {
+        return new Filter() {
+            public void init(FilterConfig filterConfig) throws ServletException {
+            }
 
-					if (getLDAPURL() != null) {
+            public void doFilter(ServletRequest request,
+                    ServletResponse response, FilterChain chain)
+                            throws IOException, ServletException {
+                HttpServletRequest r = (HttpServletRequest) request;
 
-						GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
-						if (storedGrants != null && storedGrants.length > 1) {
-							authorities = retrieveAuthoritiesIfNecessary(userFromHeader, storedGrants);
-						} else {
-							try {
-								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
-								authorities = userDetails.getAuthorities();
+                String authorization = null;
+                String userFromApiToken = null;
+                if ((authorization = r.getHeader("Authorization")) != null && authorization.toLowerCase().startsWith("basic ")) {
+                    String uidpassword = Scrambler.descramble(authorization.substring(6));
+                    int idx = uidpassword.indexOf(':');
+                    if (idx >= 0) {
+                        String username = uidpassword.substring(0, idx);
+                        String password = uidpassword.substring(idx+1);
 
-								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                        // attempt to authenticate as API token
+                        User u = User.get(username, false);
+                        ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
+                        if (t != null && t.matchesPassword(password)) {
+                            userFromApiToken = username;
+                        }
+                    }
+                }
 
-							} catch (UsernameNotFoundException e) {
-								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
+                String userFromHeader = null;
 
-								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-							}
-						}
+                Authentication auth = Hudson.ANONYMOUS;
+                if ((forwardedUser != null
+                        && (userFromHeader = r.getHeader(forwardedUser)) != null)
+                        || userFromApiToken != null) {
+                    //LOGGER.log(Level.INFO, "USER LOGGED IN: {0}", userFromHeader);
+                    if (userFromHeader == null && userFromApiToken != null) {
+                        userFromHeader = userFromApiToken;
+                    }
 
-					} else {
-						String groups = r.getHeader(headerGroups);
+                    if (getLDAPURL() != null) {
 
-						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
-						localAuthorities.add(AUTHENTICATED_AUTHORITY);
+                        GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
+                        if (storedGrants != null && storedGrants.length > 1) {
+                            authorities = retrieveAuthoritiesIfNecessary(userFromHeader, storedGrants);
+                        } else {
+                            try {
+                                LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
+                                authorities = userDetails.getAuthorities();
 
-						if (groups != null) {
-							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
-							while (tokenizer.hasMoreTokens()) {
-								final String token = tokenizer.nextToken().trim();
-								localAuthorities.add(new GrantedAuthorityImpl(token));
-							}
-						}
+                                Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+                                authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
 
-						authorities = localAuthorities.toArray(new GrantedAuthority[0]);
+                            } catch (UsernameNotFoundException e) {
+                                LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
 
-						SearchTemplate searchTemplate = new UserSearchTemplate(userFromHeader);
+                                Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
+                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+                                authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                            }
+                        }
 
-						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
+                    } else {
+                        //Without LDAP, retrieve user data from the headers 
 
-						String[] authString = foundAuthorities.toArray(new String[0]);
-						for (int i = 0; i < authString.length; i++) {
-							tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
-						}
+                        ForwardedUserData forwardedData=retrieveForwardedData(r);
+                        User user=User.get(userFromHeader);
+                        if(user!=null){
+                            forwardedData.update(user);
+                        }
+                        String groups = r.getHeader(headerGroups);
 
-						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-						authContext.put(userFromHeader, authorities);
+                        List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
+                        localAuthorities.add(AUTHENTICATED_AUTHORITY);
 
-						auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
-					}
-					authContext.put(userFromHeader, authorities);
-					auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
-				}
-				
-				retrievedUser = userFromHeader;
-				
-				SecurityContextHolder.getContext().setAuthentication(auth);
-				chain.doFilter(r, response);
-			}
+                        if (groups != null) {
+                            StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
+                            while (tokenizer.hasMoreTokens()) {
+                                final String token = tokenizer.nextToken().trim();
+                                localAuthorities.add(new GrantedAuthorityImpl(token));
+                            }
+                        }
 
-			public void destroy() {
-			}
-		};
-	}
+                        authorities = localAuthorities.toArray(new GrantedAuthority[0]);
 
-	@Override
-	public boolean canLogOut() {
-		return false;
-	}
+                        SearchTemplate searchTemplate = new UserSearchTemplate(userFromHeader);
 
-	@Override
-	public SecurityComponents createSecurityComponents() {
-		Binding binding = new Binding();
-		binding.setVariable("instance", this);
+                        Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
+                        Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
 
-		BeanBuilder builder = new BeanBuilder(Jenkins.getInstance().pluginManager.uberClassLoader);
+                        String[] authString = foundAuthorities.toArray(new String[0]);
+                        for (int i = 0; i < authString.length; i++) {
+                            tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
+                        }
 
-		String fileName;
-		if (getLDAPURL() != null) {
-			fileName = "ReverseProxyLDAPSecurityRealm.groovy";
-		} else {
-			fileName = "ReverseProxySecurityRealm.groovy";
-		}
+                        authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                    }
+                    authContext.put(userFromHeader, authorities);
+                    auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
+                }
 
-		try {
-			File override = new File(Jenkins.getInstance().getRootDir(), fileName);
-			builder.parse(override.exists() ? new AutoCloseInputStream(new FileInputStream(override)) :
-				getClass().getResourceAsStream(fileName), binding);
-		} catch (FileNotFoundException e) {
-			throw new Error("Failed to load "+fileName,e);
-		}
-		WebApplicationContext appContext = builder.createApplicationContext();
+                retrievedUser = userFromHeader;
 
-		if (getLDAPURL() == null) {
-			proxyTemplate = new ReverseProxySearchTemplate();
+                SecurityContextHolder.getContext().setAuthentication(auth);
+                chain.doFilter(r, response);
+            }
 
-			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ReverseProxyUserDetailsService(appContext));
-		} else {
-			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+            public void destroy() {
+            }
+        };
+    }
+    
+    private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
+        ForwardedUserData toReturn=new ForwardedUserData();
+        if(forwardedEmail!=null){
+                toReturn.setEmail(r.getHeader(forwardedEmail));
+        }
+        if(forwardedDisplayName!=null){
+                toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
+        }
+        return toReturn;
+}
 
-		        if (groupMembershipFilter != null) {
-			        ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
-			        authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
-		        }
+    @Override
+    public boolean canLogOut() {
+        return false;
+    }
 
-			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
-		}
-	}
+    @Override
+    public SecurityComponents createSecurityComponents() {
+        Binding binding = new Binding();
+        binding.setVariable("instance", this);
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
-		UserDetails userDetails = getSecurityComponents().userDetails.loadUserByUsername(username);
+        BeanBuilder builder = new BeanBuilder(Jenkins.getInstance().pluginManager.uberClassLoader);
+
+        String fileName;
+        if (getLDAPURL() != null) {
+            fileName = "ReverseProxyLDAPSecurityRealm.groovy";
+        } else {
+            fileName = "ReverseProxySecurityRealm.groovy";
+        }
+
+        try {
+            File override = new File(Jenkins.getInstance().getRootDir(), fileName);
+            builder.parse(override.exists() ? new AutoCloseInputStream(new FileInputStream(override)) :
+                getClass().getResourceAsStream(fileName), binding);
+        } catch (FileNotFoundException e) {
+            throw new Error("Failed to load "+fileName,e);
+        }
+        WebApplicationContext appContext = builder.createApplicationContext();
+
+        if (getLDAPURL() == null) {
+            proxyTemplate = new ReverseProxySearchTemplate();
+
+            return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ReverseProxyUserDetailsService(appContext));
+        } else {
+            ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
+
+            if (groupMembershipFilter != null) {
+                ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
+                authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
+            }
+
+            return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
+        UserDetails userDetails = getSecurityComponents().userDetails.loadUserByUsername(username);
         if (userDetails instanceof LdapUserDetails) {
             updateLdapUserDetails((LdapUserDetails) userDetails);
         }
         return userDetails;
-	}
+    }
 
     public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
         LOGGER.log(Level.FINEST, "displayNameLdapAttribute" + displayNameLdapAttribute);
@@ -618,175 +665,175 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
         return d;
     }
 
-	@Override
-	@SuppressWarnings("unchecked")
-	public GroupDetails loadGroupByGroupname(String groupname) throws UsernameNotFoundException, DataAccessException {
+    @Override
+    @SuppressWarnings("unchecked")
+    public GroupDetails loadGroupByGroupname(String groupname) throws UsernameNotFoundException, DataAccessException {
 
-		final Set<String> groups;
+        final Set<String> groups;
 
-		if (getLDAPURL() != null) {
-			// TODO: obtain a DN instead so that we can obtain multiple attributes later
-			String searchBase = groupSearchBase != null ? groupSearchBase : "";
-			String searchFilter = groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH;
-			groups = ldapTemplate.searchForSingleAttributeValues(searchBase, searchFilter, new String[]{groupname}, "cn");
-		} else {
-			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-			GrantedAuthority[] authorities = authContext.get(auth.getName());
+        if (getLDAPURL() != null) {
+            // TODO: obtain a DN instead so that we can obtain multiple attributes later
+            String searchBase = groupSearchBase != null ? groupSearchBase : "";
+            String searchFilter = groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH;
+            groups = ldapTemplate.searchForSingleAttributeValues(searchBase, searchFilter, new String[]{groupname}, "cn");
+        } else {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            GrantedAuthority[] authorities = authContext.get(auth.getName());
 
-			SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
+            SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
 
-			groups = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-		}
+            groups = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
+        }
 
-		if(groups.isEmpty())
-			throw new UsernameNotFoundException(groupname);
+        if(groups.isEmpty())
+            throw new UsernameNotFoundException(groupname);
 
-		return new GroupDetails() {
-			@Override
-			public String getName() {
-				return groups.iterator().next();
-			}
-		};
-	}
+        return new GroupDetails() {
+            @Override
+            public String getName() {
+                return groups.iterator().next();
+            }
+        };
+    }
 
-	public <T> T extractBean(Class<T> type, WebApplicationContext appContext) {
-		T returnedObj = findBean(type, appContext);
-		return returnedObj;
-	}
+    public <T> T extractBean(Class<T> type, WebApplicationContext appContext) {
+        T returnedObj = findBean(type, appContext);
+        return returnedObj;
+    }
 
-	@Extension
-	public static class ProxyLDAPDescriptor extends Descriptor<SecurityRealm> {
+    @Extension
+    public static class ProxyLDAPDescriptor extends Descriptor<SecurityRealm> {
 
-		@Override
-		public String getDisplayName() {
-			return Messages.ReverseProxySecurityRealm_DisplayName();
-		}
+        @Override
+        public String getDisplayName() {
+            return Messages.ReverseProxySecurityRealm_DisplayName();
+        }
 
-		public FormValidation doServerCheck(
-				@QueryParameter final String server,
-				@QueryParameter final String managerDN,
-				@QueryParameter final String managerPassword) {
+        public FormValidation doServerCheck(
+                @QueryParameter final String server,
+                @QueryParameter final String managerDN,
+                @QueryParameter final String managerPassword) {
 
-			if(!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER))
-				return FormValidation.ok();
+            if(!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER))
+                return FormValidation.ok();
 
-			try {
-				Hashtable<String,String> props = new Hashtable<String,String>();
-				if(managerDN!=null && managerDN.trim().length() > 0  && !"undefined".equals(managerDN)) {
-					props.put(Context.SECURITY_PRINCIPAL,managerDN);
-				}
-				if(managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
-					props.put(Context.SECURITY_CREDENTIALS,managerPassword);
-				}
+            try {
+                Hashtable<String,String> props = new Hashtable<String,String>();
+                if(managerDN!=null && managerDN.trim().length() > 0  && !"undefined".equals(managerDN)) {
+                    props.put(Context.SECURITY_PRINCIPAL,managerDN);
+                }
+                if(managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
+                    props.put(Context.SECURITY_CREDENTIALS,managerPassword);
+                }
 
-				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-				props.put(Context.PROVIDER_URL, toProviderUrl(server, ""));
+                props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+                props.put(Context.PROVIDER_URL, toProviderUrl(server, ""));
 
 
-				DirContext ctx = new InitialDirContext(props);
-				ctx.getAttributes("");
-				return FormValidation.ok();   // connected
-			} catch (NamingException e) {
-				// trouble-shoot
-				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(server.trim());
-				if(!m.matches())
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
+                DirContext ctx = new InitialDirContext(props);
+                ctx.getAttributes("");
+                return FormValidation.ok();   // connected
+            } catch (NamingException e) {
+                // trouble-shoot
+                Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(server.trim());
+                if(!m.matches())
+                    return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
 
-				try {
-					InetAddress adrs = InetAddress.getByName(m.group(2));
-					int port = m.group(1) != null ? 636 : 389;
-					if(m.group(3) != null)
-						port = Integer.parseInt(m.group(3));
-					Socket s = new Socket(adrs,port);
-					s.close();
-				} catch (UnknownHostException x) {
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
-				} catch (IOException x) {
-					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, x.getMessage()));
-				}
+                try {
+                    InetAddress adrs = InetAddress.getByName(m.group(2));
+                    int port = m.group(1) != null ? 636 : 389;
+                    if(m.group(3) != null)
+                        port = Integer.parseInt(m.group(3));
+                    Socket s = new Socket(adrs,port);
+                    s.close();
+                } catch (UnknownHostException x) {
+                    return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
+                } catch (IOException x) {
+                    return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, x.getMessage()));
+                }
 
-				// otherwise we don't know what caused it, so fall back to the general error report
-				// getMessage() alone doesn't offer enough
-				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, e));
-			} catch (NumberFormatException x) {
-				// The getLdapCtxInstance method throws this if it fails to parse the port number
-				return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());
-			}
-		}
-	}
+                // otherwise we don't know what caused it, so fall back to the general error report
+                // getMessage() alone doesn't offer enough
+                return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, e));
+            } catch (NumberFormatException x) {
+                // The getLdapCtxInstance method throws this if it fails to parse the port number
+                return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());
+            }
+        }
+    }
 
-	public static class ReverseProxyUserDetailsService implements UserDetailsService {
+    public static class ReverseProxyUserDetailsService implements UserDetailsService {
 
-		private final ReverseProxyAuthoritiesPopulator authoritiesPopulator;
+        private final ReverseProxyAuthoritiesPopulator authoritiesPopulator;
 
-		public ReverseProxyUserDetailsService(WebApplicationContext appContext) {
-			authoritiesPopulator = findBean(
-					ReverseProxyAuthoritiesPopulator.class, appContext);
-		}
+        public ReverseProxyUserDetailsService(WebApplicationContext appContext) {
+            authoritiesPopulator = findBean(
+                    ReverseProxyAuthoritiesPopulator.class, appContext);
+        }
 
-		public ReverseProxyUserDetails loadUserByUsername(String username)
-				throws UsernameNotFoundException, DataAccessException {
-			try {
-				ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
-				proxyUser.setUsername(username);
+        public ReverseProxyUserDetails loadUserByUsername(String username)
+                throws UsernameNotFoundException, DataAccessException {
+            try {
+                ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
+                proxyUser.setUsername(username);
 
-				GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
+                GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
 
-				proxyUser.setAuthorities(localAuthorities);
+                proxyUser.setAuthorities(localAuthorities);
 
-				return proxyUser;
-			} catch (LdapDataAccessException e) {
-				LOGGER.log(Level.WARNING, "Failed to search LDAP for username=" + username, e);
-				throw new UserMayOrMayNotExistException(e.getMessage(), e);
-			}
-		}
-	}
+                return proxyUser;
+            } catch (LdapDataAccessException e) {
+                LOGGER.log(Level.WARNING, "Failed to search LDAP for username=" + username, e);
+                throw new UserMayOrMayNotExistException(e.getMessage(), e);
+            }
+        }
+    }
 
-	private GrantedAuthority[] retrieveAuthoritiesIfNecessary(final String userFromHeader, final GrantedAuthority[] storedGrants) {
-		
-		GrantedAuthority[] authorities = storedGrants;
-		
-		if (getLDAPURL() != null) {
-			
-			long current = System.currentTimeMillis();
-			if (authorityUpdateCache != null && authorityUpdateCache.containsKey(userFromHeader)) {
-				long lastTime = authorityUpdateCache.get(userFromHeader);
-				
-				//Time in minutes since last occurrence
-				long check = (current - lastTime) / 1000 / 60;
-				if (check >= updateInterval) {
-					
-					LOGGER.log(Level.INFO, "The check interval reached the threshold of " + check + "min, will now update the authorities");
-					
-					LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
-					authorities = userDetails.getAuthorities();
+    private GrantedAuthority[] retrieveAuthoritiesIfNecessary(final String userFromHeader, final GrantedAuthority[] storedGrants) {
 
-					Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-					tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-					authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-					
-					authorityUpdateCache.put(userFromHeader, current);
-					
-					LOGGER.log(Level.INFO, "Authorities for user "+userFromHeader+" have been updated.");
-				}
-			} else {
-				if (authorityUpdateCache == null) {
-					authorityUpdateCache = new Hashtable<String, Long>();
-				}
-				authorityUpdateCache.put(userFromHeader, current);
-			}
+        GrantedAuthority[] authorities = storedGrants;
 
-		}
-		
-		return authorities;
-	}
-	
-	/**
-	 * If the given "server name" is just a host name (plus optional host name), add ldap:// prefix.
-	 * Otherwise assume it already contains the scheme, and leave it intact.
-	 */
-	private static String addPrefix(String server) {
-		if(server.contains("://"))  return server;
-		else    return "ldap://"+server;
-	}
+        if (getLDAPURL() != null) {
+
+            long current = System.currentTimeMillis();
+            if (authorityUpdateCache != null && authorityUpdateCache.containsKey(userFromHeader)) {
+                long lastTime = authorityUpdateCache.get(userFromHeader);
+
+                //Time in minutes since last occurrence
+                long check = (current - lastTime) / 1000 / 60;
+                if (check >= updateInterval) {
+
+                    LOGGER.log(Level.INFO, "The check interval reached the threshold of " + check + "min, will now update the authorities");
+
+                    LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
+                    authorities = userDetails.getAuthorities();
+
+                    Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
+                    tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
+                    authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+
+                    authorityUpdateCache.put(userFromHeader, current);
+
+                    LOGGER.log(Level.INFO, "Authorities for user "+userFromHeader+" have been updated.");
+                }
+            } else {
+                if (authorityUpdateCache == null) {
+                    authorityUpdateCache = new Hashtable<String, Long>();
+                }
+                authorityUpdateCache.put(userFromHeader, current);
+            }
+
+        }
+
+        return authorities;
+    }
+
+    /**
+     * If the given "server name" is just a host name (plus optional host name), add ldap:// prefix.
+     * Otherwise assume it already contains the scheme, and leave it intact.
+     */
+    private static String addPrefix(String server) {
+        if(server.contains("://"))  return server;
+        else    return "ldap://"+server;
+    }
 }
