@@ -1,4 +1,4 @@
-Jenkins Reverse Proxy Authentication and Authorisation Plugin
+# Jenkins Reverse Proxy Authentication and Authorisation Plugin
 
 The Reverse Proxy Plugin providers developers the ability to have easy and simple Authentication and Authorisation using SSO techniques. The plugin expects that the user to have Jenkins authenticated agains will be informed via a HHTP header field.
 
@@ -21,7 +21,7 @@ If the username is not forwaded to Jenkins, the user will be authenticated as AN
 However, once the LDAP is properly configured instead of groups on the HTTP header, there is guarantee that only the groups of a given user will be returned. There is no possibility to get groups injected via the header.
 
 
-#Apache httpd configuration example
+## Apache httpd configuration example
 
 Here is a simple httpd configuration (apache.conf) made to proxypass 1 to 100 jenkins called ci00 to ci99.
 Basic authentication uses an AuthUserFile and many AuthLDAP.
