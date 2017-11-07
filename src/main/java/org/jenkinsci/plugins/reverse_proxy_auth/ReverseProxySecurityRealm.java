@@ -117,7 +117,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
 	 * WANTED: The specification of the syntax.
 	 */
-	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
+	public static final String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
 			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
 	/**
@@ -462,7 +462,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					        String password = uidpassword.substring(idx+1);
 
 						// attempt to authenticate as API token
-						User u = User.get(username, false);
+						User u = User.getById(username, false);
 						if (u != null) {
 							ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
 							if (t != null && t.matchesPassword(password)) {

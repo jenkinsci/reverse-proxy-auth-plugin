@@ -2,8 +2,11 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
+    <!--<artifactId>plugin</artifactId>-->
+    <!--<version>1.554.1</version>-->
     <artifactId>plugin</artifactId>
-    <version>1.554.1</version>
+    <version>2.37</version>
+    <!--<relativePath />-->
   </parent>
 
   <artifactId>reverse-proxy-auth-plugin</artifactId>
@@ -12,7 +15,11 @@
 
   <name>Jenkins Reverse Proxy Auth Plugin</name>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/Reverse+Proxy+Auth+Plugin</url>
-
+    
+  <properties>
+    <jenkins.version>1.651.2</jenkins.version>
+  </properties>
+  
   <developers>
     <developer>
       <id>kohsuke</id>
