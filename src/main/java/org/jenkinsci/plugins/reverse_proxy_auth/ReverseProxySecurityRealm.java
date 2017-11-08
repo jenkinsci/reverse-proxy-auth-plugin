@@ -461,11 +461,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					        String username = uidpassword.substring(0, idx);
 					        String password = uidpassword.substring(idx+1);
 
-						// we do not need to take care of User that are not saved yet like in core
-						// since the plugin does not provide a page to register new user
-						User u = User.getById(username, false);
+						// attempt to authenticate as API token
+						User u = User.get(username, false);
 						if (u != null) {
-							// attempt to authenticate as API token
 							ApiTokenProperty t = u.getProperty(ApiTokenProperty.class);
 							if (t != null && t.matchesPassword(password)) {
 							        userFromApiToken = username;

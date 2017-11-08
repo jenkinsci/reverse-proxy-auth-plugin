@@ -12,12 +12,7 @@
 
   <name>Jenkins Reverse Proxy Auth Plugin</name>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/Reverse+Proxy+Auth+Plugin</url>
-    
-  <properties>
-    <!-- minimal version to have User.getById -->
-    <jenkins.version>1.651.2</jenkins.version>
-  </properties>
-  
+
   <developers>
     <developer>
       <id>kohsuke</id>
