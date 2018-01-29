@@ -16,6 +16,8 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceAware;
 import org.springframework.context.support.MessageSourceAccessor;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.util.Assert;
 
 import javax.annotation.CheckForNull;
@@ -49,22 +51,31 @@ public class DefaultReverseProxyAuthenticator implements ReverseProxyAuthenticat
 	public void afterPropertiesSet() throws Exception {
 	}
 
-	public ReverseProxyUserDetails authenticate(String username, String password) {
+	public ReverseProxyUserDetails authenticate(String username, String password) throws DataAccessException {
 
 		LOGGER.log(Level.INFO, "DefaultReverseProxyAuthenticator::authenticate ==> {0} to {1}", new Object[]{this.username, authorities});
 
-		ReverseProxyUserDetails userDetails;
+
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		if (auth != null) {
-			userDetails = (ReverseProxyUserDetails) auth.getPrincipal();
-		} else {
+		if (auth == null) {
 			//do not use the username from the parameters' list.
 			auth = new UsernamePasswordAuthenticationToken(this.username, "", authorities);
 			SecurityContextHolder.getContext().setAuthentication(auth);
-
-			userDetails = (ReverseProxyUserDetails) auth.getPrincipal();
 		}
 
-		return userDetails;
+		final Object principal = auth.getPrincipal();
+		if (principal instanceof ReverseProxyUserDetails) {
+			// oleg-nenashev: I doubt it may ever happen, but it was in the code in 1.3 ... 1.6.2
+			return (ReverseProxyUserDetails)principal;
+		} else if (principal instanceof String) {
+			ReverseProxyUserDetails details = new ReverseProxyUserDetails();
+			details.setUsername((String)principal);
+			details.setAuthorities(auth.getAuthorities());
+			return details;
+		} else {
+			// This runtime exception is handled in the calling logic
+			throw new InvalidDataAccessApiUsageException("Cannot convert principal " + principal + " to ReverseProxyUserDetails. " +
+					"Principal type is " + (principal == null ? "null" : principal.toString()));
+		}
 	}
 }
