@@ -26,6 +26,8 @@ import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.GrantedAuthorityImpl;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 
+import javax.annotation.CheckForNull;
+
 
 /**
  * @author Wilder rodrigues (wrodrigues@schuberphilis.com)
@@ -36,7 +38,7 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
 	boolean convertToUpperCase = true;
 
 	public ReverseProxyAuthoritiesPopulatorImpl(
-			Hashtable<String, GrantedAuthority[]> authContext) {
+			@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
 		super(authContext);
 
 		super.setRolePrefix("");

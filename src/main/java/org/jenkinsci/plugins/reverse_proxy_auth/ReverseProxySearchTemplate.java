@@ -5,6 +5,8 @@ import java.util.Set;
 import org.acegisecurity.GrantedAuthority;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 
+import javax.annotation.CheckForNull;
+
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
  */
@@ -14,7 +16,7 @@ public class ReverseProxySearchTemplate {
                 return ce.executeWithContext();
         }
 
-        public Set<String> searchForSingleAttributeValues(final SearchTemplate template, final GrantedAuthority [] authorities) {
+        public Set<String> searchForSingleAttributeValues(final SearchTemplate template, final @CheckForNull GrantedAuthority [] authorities) {
 
                 class SingleAttributeSearchCallback implements ContextExecutor {
 
