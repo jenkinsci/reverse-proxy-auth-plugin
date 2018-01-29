@@ -5,6 +5,9 @@ import java.util.Set;
 
 import org.acegisecurity.GrantedAuthority;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
  */
@@ -17,8 +20,15 @@ public abstract class SearchTemplate {
         }
         
         public abstract Set<String> processAuthorities(final GrantedAuthority [] authorities);
-        
-        protected Set<String> doProcess(final GrantedAuthority [] authorities) {
+
+        /**
+         * Process authorities.
+         * @param authorities Authorities. Can be {@code null}.
+         * @return Set of group and user names
+         */
+        @Nonnull
+        protected Set<String> doProcess(final @CheckForNull GrantedAuthority [] authorities) {
+                // TODO: refactoring: use emptySet() ?
                 Set<String> authorityValues = new HashSet<String>();
                 if (authorities != null) {
                         for (int i = 0; i < authorities.length; i++) {

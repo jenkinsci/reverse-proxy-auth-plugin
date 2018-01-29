@@ -15,7 +15,6 @@ public class UserSearchTemplate extends SearchTemplate {
 
         @Override
         public Set<String> processAuthorities(GrantedAuthority[] authorities) {
-                Set<String> authorityValues = doProcess(authorities);
-                return authorityValues;
+                return doProcess(authorities);
         }
 }

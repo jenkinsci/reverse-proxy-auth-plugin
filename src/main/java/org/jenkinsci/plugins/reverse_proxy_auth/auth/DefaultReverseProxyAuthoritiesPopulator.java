@@ -30,6 +30,8 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.util.Assert;
 
+import javax.annotation.CheckForNull;
+
 
 /**
  * @author Wilder rodrigues (wrodrigues@schuberphilis.com)
@@ -56,14 +58,17 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	private boolean convertToUpperCase = true;
 
 	//TODO: replace by a modern collection?
+	@CheckForNull
 	protected Hashtable<String, GrantedAuthority[]> authContext;
 
 	/**
 	 * Constructor for group search scenarios. <tt>userRoleAttributes</tt> may still be
 	 * set as a property.
+	 * @param authContext Authentication context.
+	 *                    May be {@code null}
 	 */
-	public DefaultReverseProxyAuthoritiesPopulator(Hashtable<String, GrantedAuthority[]> authContext) {
-		this.authContext = new Hashtable<>(authContext);
+	public DefaultReverseProxyAuthoritiesPopulator(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
+		this.authContext = authContext != null ? new Hashtable<>(authContext) : null;
 		reverseProxyTemplate = new ReverseProxySearchTemplate();
 	}
 
@@ -109,7 +114,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
 		Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
-		GrantedAuthority[] contextAuthorities = authContext.get(username);
+		final @CheckForNull GrantedAuthority[] contextAuthorities = authContext != null ? authContext.get(username) : null;
 
 		SearchTemplate searchTemplate = new UserSearchTemplate(username);
 

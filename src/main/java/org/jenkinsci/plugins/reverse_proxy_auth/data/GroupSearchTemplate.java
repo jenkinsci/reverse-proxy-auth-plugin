@@ -16,16 +16,15 @@ public class GroupSearchTemplate extends SearchTemplate {
         
         @Override
         public Set<String> processAuthorities(GrantedAuthority[] authorities) {
-                Set<String> authorityValues = this.doProcess(authorities);
-
-                return authorityValues;
+                return this.doProcess(authorities);
         }
         
         @Override
         protected Set<String> doProcess(GrantedAuthority[] authorities) {
+                //TODO: refactoring: use singleton
                 Set<String> authorityValues = new HashSet<String>();
                 authorityValues.add(userOrGroup);
-                
+
                 return authorityValues;
         }
 }
