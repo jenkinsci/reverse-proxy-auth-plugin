@@ -114,7 +114,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
 		Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
-		final @CheckForNull GrantedAuthority[] contextAuthorities = authContext.get(username);
+		final @CheckForNull GrantedAuthority[] contextAuthorities = authContext != null ? authContext.get(username) : null;
 
 		SearchTemplate searchTemplate = new UserSearchTemplate(username);
 
