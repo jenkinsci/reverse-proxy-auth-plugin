@@ -19,3 +19,8 @@ If the username is not forwarded to Jenkins, the user will be authenticated as A
 However, once the LDAP is properly configured instead of groups on the HTTP header, there is guarantee that only the groups of a given user will be returned. There is no possibility to get groups injected via the header.
 
 See the fields in [ReverseProxySecurityRealm.java](https://github.com/jenkinsci/reverse-proxy-auth-plugin/blob/master/src/main/java/org/jenkinsci/plugins/reverse_proxy_auth/ReverseProxySecurityRealm.java) for details about the available options. 
+
+## Alternative authentication: API Token
+An other possibility to authenticate is to the use an HTTP Basic authentication with the Jenkins API Token.
+
+If both methods (header specific for this plugin and HTTP Basic authentication) are used, the plugin header takes precedence.
