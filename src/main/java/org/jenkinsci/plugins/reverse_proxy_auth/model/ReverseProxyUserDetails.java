@@ -1,10 +1,14 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.model;
 
+import javax.annotation.CheckForNull;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.BasicAttributes;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.userdetails.UserDetails;
+
+import java.util.Arrays;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
@@ -13,23 +17,28 @@ public class ReverseProxyUserDetails implements UserDetails {
 
 	private static final long serialVersionUID = 8070729070782792157L;
 
-	private static Attributes attributes = new BasicAttributes();
+	private static final Attributes attributes = new BasicAttributes();
 
+	@CheckForNull
 	private GrantedAuthority[] authorities;
+	@CheckForNull
 	private String username;
 
+	@CheckForNull
+	@SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "We keep it as is due to performance reasons")
 	public GrantedAuthority[] getAuthorities() {
 		return authorities;
 	}
 
-	public void setAuthorities(GrantedAuthority[] authorities) {
-		this.authorities = authorities;
+	public void setAuthorities(@CheckForNull GrantedAuthority[] authorities) {
+		this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
 	}
 
 	public String getPassword() {
 		return "";
 	}
 
+	@CheckForNull
 	public String getUsername() {
 		return username;
 	}
