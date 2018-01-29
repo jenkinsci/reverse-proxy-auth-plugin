@@ -26,10 +26,11 @@ package org.jenkinsci.plugins.reverse_proxy_auth;
 import static hudson.Util.fixEmpty;
 import static hudson.Util.fixEmptyAndTrim;
 import static hudson.Util.fixNull;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
-import hudson.model.Hudson;
 import hudson.model.User;
 import hudson.security.*;
 import hudson.tasks.Mailer;
@@ -42,6 +43,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -57,6 +59,8 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 import javax.naming.Context;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
@@ -101,6 +105,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
@@ -117,6 +122,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
 	 * WANTED: The specification of the syntax.
 	 */
+	@SuppressFBWarnings(value = "MS_SHOULD_BE_FINAL", justification = "May be used in system groovy scripts")
 	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
 			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
@@ -240,6 +246,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * The name of the header which the username has to be extracted from.
 	 */
+	@CheckForNull
 	public final String forwardedUser;
 	
 	/**
@@ -339,6 +346,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return headerGroupsDelimiter;
 	}
 
+	@CheckForNull
 	public String getServerUrl() {
 		if (server == null) {
 			return null;
@@ -391,6 +399,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
 			}
 			props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+			//TODO: should it pass null instead and check the result?
 			props.put(Context.PROVIDER_URL, toProviderUrl(fixNull(getServerUrl()), ""));
 
 			DirContext ctx = new InitialDirContext(props);
@@ -412,7 +421,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 	}
 
-	public static String toProviderUrl(String serverUrl, String rootDN) {
+	@Nullable
+	public static String toProviderUrl(@CheckForNull String serverUrl, @CheckForNull String rootDN) {
 		if (serverUrl == null) {
 			return null;
 		}
@@ -474,15 +484,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 				String userFromHeader = null;
 
-				Authentication auth = Hudson.ANONYMOUS;
+				Authentication auth = Jenkins.ANONYMOUS;
 				if ((forwardedUser != null && (userFromHeader = r.getHeader(forwardedUser)) != null) || userFromApiToken != null) {
 					LOGGER.log(Level.FINE, "USER LOGGED IN: {0}", userFromHeader);
-			        if (userFromHeader == null && userFromApiToken != null) {
+			        if (userFromHeader == null) {
 				        userFromHeader = userFromApiToken;
 					}
 
                     if (authContext == null) {
-                        authContext = new Hashtable<String, GrantedAuthority[]>();
+                        authContext = new Hashtable<>();
                     }
 
 					if (getLDAPURL() != null) {
@@ -575,11 +585,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	}
 
 	@Override
-	public SecurityComponents createSecurityComponents() {
+	public SecurityComponents createSecurityComponents() throws DataAccessException {
 		Binding binding = new Binding();
 		binding.setVariable("instance", this);
 
-		BeanBuilder builder = new BeanBuilder(Jenkins.getInstance().pluginManager.uberClassLoader);
+		BeanBuilder builder = new BeanBuilder(Jenkins.getActiveInstance().pluginManager.uberClassLoader);
 
 		String fileName;
 		if (getLDAPURL() != null) {
@@ -588,12 +598,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			fileName = "ReverseProxySecurityRealm.groovy";
 		}
 
-		try {
-			File override = new File(Jenkins.getInstance().getRootDir(), fileName);
-			builder.parse(override.exists() ? new AutoCloseInputStream(new FileInputStream(override)) :
-				getClass().getResourceAsStream(fileName), binding);
-		} catch (FileNotFoundException e) {
-			throw new Error("Failed to load "+fileName,e);
+		File override = new File(Jenkins.getActiveInstance().getRootDir(), fileName);
+		try(InputStream istream = override.exists()
+				? new FileInputStream(override)
+				: getClass().getResourceAsStream(fileName)) {
+			if (istream == null) {
+				throw new FileNotFoundException("Cannot find resource " + fileName);
+			}
+			builder.parse(istream, binding);
+		} catch (IOException e) {
+			// loadUserByUsername() declares DataAccessException to be thrown, so it is better than the Error which was thrown before 1.6.0
+			throw new DataAccessResourceFailureException("Failed to load "+fileName, e);
 		}
 		WebApplicationContext appContext = builder.createApplicationContext();
 
@@ -722,7 +737,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				@QueryParameter final String managerDN,
 				@QueryParameter final String managerPassword) {
 
-			if (!Jenkins.getInstance().hasPermission(Jenkins.ADMINISTER)) {
+			final String trimmedServer = fixEmptyAndTrim(server);
+			if (trimmedServer == null) {
+				return FormValidation.error("Server is null or empty");
+			}
+
+			if (!Jenkins.getActiveInstance().hasPermission(Jenkins.ADMINISTER)) {
 				return FormValidation.ok();
 			}
 
@@ -736,7 +756,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				}
 
 				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-				props.put(Context.PROVIDER_URL, toProviderUrl(server, ""));
+				props.put(Context.PROVIDER_URL, toProviderUrl(trimmedServer, ""));
 
 
 				DirContext ctx = new InitialDirContext(props);
@@ -744,7 +764,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				return FormValidation.ok();   // connected
 			} catch (NamingException e) {
 				// trouble-shoot
-				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(server.trim());
+				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(trimmedServer.trim());
 				if(!m.matches())
 					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
 
@@ -758,12 +778,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				} catch (UnknownHostException x) {
 					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
 				} catch (IOException x) {
-					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, x.getMessage()));
+					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, x.getMessage()));
 				}
 
 				// otherwise we don't know what caused it, so fall back to the general error report
 				// getMessage() alone doesn't offer enough
-				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(server, e));
+				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, e));
 			} catch (NumberFormatException x) {
 				// The getLdapCtxInstance method throws this if it fails to parse the port number
 				return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());

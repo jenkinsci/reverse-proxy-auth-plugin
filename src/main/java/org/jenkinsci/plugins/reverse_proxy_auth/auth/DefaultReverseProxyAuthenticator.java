@@ -1,8 +1,10 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.acegisecurity.AcegiMessageSource;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
@@ -16,6 +18,9 @@ import org.springframework.context.MessageSourceAware;
 import org.springframework.context.support.MessageSourceAccessor;
 import org.springframework.util.Assert;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
@@ -25,17 +30,18 @@ public class DefaultReverseProxyAuthenticator implements ReverseProxyAuthenticat
 	private static final Logger LOGGER = Logger
 			.getLogger(ReverseProxySecurityRealm.class.getName());
 
+	@SuppressFBWarnings(value = "URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD", justification = "It is a part of public API :(")
 	protected MessageSourceAccessor messages = AcegiMessageSource.getAccessor();
 
 	private final String username;
 	private final GrantedAuthority[] authorities;
 
-	public DefaultReverseProxyAuthenticator(String username, GrantedAuthority[] authorities) {
+	public DefaultReverseProxyAuthenticator(String username, @CheckForNull GrantedAuthority[] authorities) {
 		this.username = username;
-		this.authorities = authorities;
+		this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
 	}
 
-	public void setMessageSource(MessageSource messageSource) {
+	public void setMessageSource(@Nonnull MessageSource messageSource) {
 		Assert.notNull("Message source must not be null");
 		messages = new MessageSourceAccessor(messageSource);
 	}

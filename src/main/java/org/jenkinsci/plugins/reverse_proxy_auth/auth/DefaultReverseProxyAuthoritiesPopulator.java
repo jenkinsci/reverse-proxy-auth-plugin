@@ -55,6 +55,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	private String rolePrefix = "ROLE_";
 	private boolean convertToUpperCase = true;
 
+	//TODO: replace by a modern collection?
 	protected Hashtable<String, GrantedAuthority[]> authContext;
 
 	/**
@@ -62,7 +63,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	 * set as a property.
 	 */
 	public DefaultReverseProxyAuthoritiesPopulator(Hashtable<String, GrantedAuthority[]> authContext) {
-		this.authContext = authContext;
+		this.authContext = new Hashtable<>(authContext);
 		reverseProxyTemplate = new ReverseProxySearchTemplate();
 	}
 
