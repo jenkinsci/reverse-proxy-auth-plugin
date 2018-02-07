@@ -7,7 +7,7 @@
   </parent>
 
   <artifactId>reverse-proxy-auth-plugin</artifactId>
-  <version>1.6.3</version>
+  <version>1.6.4-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <properties>
@@ -43,7 +43,7 @@
     <connection>scm:git:git://github.com/jenkinsci/${project.artifactId}.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/${project.artifactId}.git</developerConnection>
     <url>https://github.com/jenkinsci/${project.artifactId}</url>
-    <tag>reverse-proxy-auth-plugin-1.6.3</tag>
+    <tag>HEAD</tag>
   </scm>
 
     <dependencies>
