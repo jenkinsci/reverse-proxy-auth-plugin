@@ -563,7 +563,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			}
 		};
 		Filter defaultFilter = super.createFilter(filterConfig);
-		return new ChainedServletFilter(filter, defaultFilter);
+		return new ChainedServletFilter(defaultFilter, filter);
 	}
 
 	@Override
