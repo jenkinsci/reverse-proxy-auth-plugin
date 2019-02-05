@@ -1,0 +1,20 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <f:entry title="Crowd authorization properties:"></f:entry>
+    <f:entry title="${%Crowd Server:}">
+        <f:textbox field="crowdUrl" />
+    </f:entry>
+    <f:entry title="${%Application name}">
+        <f:textbox field="crowdApplicationName" />
+    </f:entry>
+    <f:entry title="${%Application password}">
+        <f:password field="crowdApplicationPassword" />
+    </f:entry>
+    <f:entry title="${%Cache Update Interval}" >
+        <f:textbox name="updateInterval" value="${instance.updateInterval}" default="15"/>
+    </f:entry>
+    <f:validateButton
+            title="${%Test Crowd connection}" progress="${%Testing connection to Crowd...}"
+            method="testCrowdConnection" with="crowdUrl,crowdApplicationName,crowdApplicationPassword" />
+    <f:entry title="Common authorization properties:"></f:entry>
+</j:jelly>

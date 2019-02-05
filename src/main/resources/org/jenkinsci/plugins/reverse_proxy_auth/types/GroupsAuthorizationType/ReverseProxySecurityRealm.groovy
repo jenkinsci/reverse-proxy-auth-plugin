@@ -25,59 +25,37 @@ import org.acegisecurity.providers.ProviderManager
 import org.acegisecurity.providers.anonymous.AnonymousAuthenticationProvider
 import org.acegisecurity.providers.rememberme.RememberMeAuthenticationProvider
 
-import org.acegisecurity.providers.ldap.LdapAuthenticationProvider
-import org.acegisecurity.providers.ldap.authenticator.BindAuthenticator2
-import org.acegisecurity.ldap.DefaultInitialDirContextFactory
-import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch
-
-import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopulator
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthenticationProvider
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthenticator
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulatorImpl
 
 import jenkins.model.Jenkins
-import hudson.Util
-import javax.naming.Context
 
 /*
-    Configure The Reverse Proxy Auth. as the authentication realm.
+    Configure Reverse Proxy as the authentication realm.
 
-    Authentication is performed by doing Reverse Proxy, using username and LDAP groups from the HTTP header.
+    Authentication is performed by doing LDAP bind.
     The 'instance' object refers to the instance of ReverseProxySecurityRealm
 */
 
-initialDirContextFactory(DefaultInitialDirContextFactory, instance.getLDAPURL() ) {
-  if(instance.managerDN != null) {
-    managerDn = instance.managerDN;
-    managerPassword = instance.getManagerPassword();
-  }
-  extraEnvVars = [(Context.REFERRAL):"follow"];
+authoritiesPopulator(ReverseProxyAuthoritiesPopulatorImpl, instance.authContext) {
 }
 
-ldapUserSearch(FilterBasedLdapUserSearch, instance.userSearchBase, instance.userSearch, initialDirContextFactory) {
-    searchSubtree = true
-}
-
-bindAuthenticator(BindAuthenticator2, initialDirContextFactory) {
-    // this is when we need to find it.
-    userSearch = ldapUserSearch;
-}
-
-authoritiesPopulator(ProxyLDAPAuthoritiesPopulator, initialDirContextFactory, instance.groupSearchBase) {
-    // see DefaultLdapAuthoritiesPopulator for other possible configurations
-    searchSubtree = true;
-    groupSearchFilter = "(| (member={0}) (uniqueMember={0}) (memberUid={1}))";
+authenticator(DefaultReverseProxyAuthenticator, instance.retrievedUser, instance.authorities) {
 }
 
 authenticationManager(ProviderManager) {
     providers = [
-        // talk to Reverse Proxy Authentication + Authorisation via LDAP
-        bean(LdapAuthenticationProvider,bindAuthenticator,authoritiesPopulator),
-    
+        // talk to Reverse Proxy Authentication
+        bean(ReverseProxyAuthenticationProvider,authenticator,authoritiesPopulator),
+        
         // these providers apply everywhere
         bean(RememberMeAuthenticationProvider) {
             key = Jenkins.getInstance().getSecretKey();
         },
         // this doesn't mean we allow anonymous access.
         // we just authenticate anonymous users as such,
-        // so that later authorisation can reject them if so configured
+        // so that later authorization can reject them if so configured
         bean(AnonymousAuthenticationProvider) {
             key = "anonymous"
         }
