@@ -35,7 +35,6 @@ import hudson.model.User;
 import hudson.security.*;
 import hudson.tasks.Mailer;
 import hudson.tasks.Mailer.UserProperty;
-import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.spring.BeanBuilder;
 
@@ -44,20 +43,13 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
+import java.io.ObjectStreamException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
-import java.util.List;
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
@@ -79,11 +71,8 @@ import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
 
 import org.acegisecurity.Authentication;
-import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
 import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.ldap.LdapDataAccessException;
 import org.acegisecurity.ldap.LdapTemplate;
 import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
@@ -92,17 +81,15 @@ import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
-import org.apache.commons.io.input.AutoCloseInputStream;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.types.AuthorizationTypeMappingFactory;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
-import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
+import org.jenkinsci.plugins.reverse_proxy_auth.types.GroupsAuthorizationType;
+import org.jenkinsci.plugins.reverse_proxy_auth.types.LdapAuthorizationType;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -122,6 +109,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * See http://msdn.microsoft.com/en-us/library/aa746475(VS.85).aspx for the syntax by example.
 	 * WANTED: The specification of the syntax.
 	 */
+	@Deprecated
 	@SuppressFBWarnings(value = "MS_SHOULD_BE_FINAL", justification = "May be used in system groovy scripts")
 	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
 			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
@@ -134,21 +122,25 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * Scrambled password, used to first bind to LDAP.
 	 */
-	private final String managerPassword;
+	@Deprecated
+	private transient final String managerPassword;
 
 	/**
 	 * Search Template used when the groups are in the header.
 	 */
+	@Deprecated
 	private ReverseProxySearchTemplate proxyTemplate;
 
 	/**
 	 * Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP.
 	 */
+	@Deprecated
 	private transient LdapTemplate ldapTemplate;
 
 	/**
 	 * Keeps the state of connected users and their granted authorities.
 	 */
+	@Deprecated
 	private transient Hashtable<String, GrantedAuthority[]> authContext;
 	
 	/**
@@ -161,20 +153,24 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * LDAP server name(s) separated by spaces, optionally with TCP port number, like "ldap.acme.org"
 	 * or "ldap.acme.org:389" and/or with protcol, like "ldap://ldap.acme.org".
 	 */
-	public final String server;
+	@Deprecated
+	public transient final String server;
 
 	/**
 	 * The root DN to connect to. Normally something like "dc=sun,dc=com"
 	 *
 	 * How do I infer this?
 	 */
-	public final String rootDN;
+
+	@Deprecated
+	public transient final String rootDN;
 
 	/**
 	 * Allow the rootDN to be inferred? Default is false.
 	 * If true, allow rootDN to be blank.
 	 */
-	public final boolean inhibitInferRootDN;
+	@Deprecated
+	public transient final boolean inhibitInferRootDN;
 
 	/**
 	 * Specifies the relative DN from {@link #rootDN the root DN}.
@@ -182,7 +178,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * Something like "ou=people" but can be empty.
 	 */
-	public final String userSearchBase;
+	@Deprecated
+	public transient final String userSearchBase;
 
 	/**
 	 * Query to locate an entry that identifies the user, given the user name string.
@@ -191,7 +188,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * @see FilterBasedLdapUserSearch
 	 */
-	public final String userSearch;
+	@Deprecated
+	public transient final String userSearch;
 
 	/**
 	 * This defines the organizational unit that contains groups.
@@ -201,7 +199,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * @see FilterBasedLdapUserSearch
 	 */
-	public final String groupSearchBase;
+	@Deprecated
+	public transient final String groupSearchBase;
 
 	/**
 	 * Query to locate an entry that identifies the group, given the group name string. If non-null it will override
@@ -209,20 +208,23 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * @since 1.5
 	 */
-	public final String groupSearchFilter;
+	@Deprecated
+	public transient final String groupSearchFilter;
 
     /**
       * Query to locate the group entries that a user belongs to, given the user object. <code>{0}</code>
       * is the user's full DN while {1} is the username.
       */
-     public final String groupMembershipFilter;
+    @Deprecated
+	public transient final String groupMembershipFilter;
 
      /**
       * Attribute that should be used instead of CN as name to match a users group name to the groupSearchFilter name.
       * When {@link #groupSearchFilter} is set to search for a field other than CN e.g. <code>GroupDisplayName={0}</code> 
       * here you can configure that this (<code>GroupDisplayName</code>) or another field should be used when looking for a users groups.
       */
-     public String groupNameAttribute;
+     @Deprecated
+	 public transient String groupNameAttribute;
 
 	/**
 	 * If non-null, we use this and {@link #managerPassword}
@@ -230,12 +232,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * This is necessary when LDAP doesn't support anonymous access.
 	 */
-	public final String managerDN;
+	@Deprecated
+	public transient final String managerDN;
 
 	/**
 	 * Sets an interval for updating the LDAP authorities. The interval is specified in minutes.
 	 */
-	public final int updateInterval;
+	@Deprecated
+	public transient final int updateInterval;
 	
 	/**
 	 * The authorities that are granted to the authenticated user.
@@ -257,18 +261,23 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * Header name of the groups field.
 	 */
-	public final String headerGroups;
+	@Deprecated
+	public transient final String headerGroups;
 
 	/**
 	 * Header name of the groups delimiter field.
 	 */
-	public final String headerGroupsDelimiter;
+	@Deprecated
+	public transient final String headerGroupsDelimiter;
 
-    public final boolean disableLdapEmailResolver;
+	@Deprecated
+	public transient final boolean disableLdapEmailResolver;
 
-    private final String displayNameLdapAttribute;
+    @Deprecated
+	private transient  final String displayNameLdapAttribute;
 
-    private final String emailAddressLdapAttribute;
+    @Deprecated
+    private transient final String emailAddressLdapAttribute;
 
 	/**
 	 * Custom post logout url
@@ -276,7 +285,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public final String customLogInUrl;
 	public final String customLogOutUrl;
 
-	@DataBoundConstructor
+	/**
+	 * Represents the Authorization Types Mapping Factory
+	 */
+	private AuthorizationTypeMappingFactory authorizationTypeMappingFactory;
+
+	@Deprecated
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
 			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
@@ -331,6 +345,96 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.emailAddressLdapAttribute = emailAddressLdapAttribute;
 	}
 
+	@DataBoundConstructor
+	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
+									 String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword,
+									 Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute, AuthorizationTypeMappingFactory authorizationTypeMappingFactory) {
+
+		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+
+		this.headerGroups = headerGroups;
+		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
+			this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
+		} else {
+			this.headerGroupsDelimiter = "|";
+		}
+
+		if(!StringUtils.isBlank(customLogInUrl)) {
+			this.customLogInUrl = customLogInUrl;
+		} else {
+			this.customLogInUrl = null;
+		}
+
+		if(!StringUtils.isBlank(customLogOutUrl)) {
+			this.customLogOutUrl = customLogOutUrl;
+		} else {
+			this.customLogOutUrl = null;
+		}
+
+		this.server = fixEmptyAndTrim(server);
+		this.managerDN = fixEmpty(managerDN);
+		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
+		this.inhibitInferRootDN = inhibitInferRootDN;
+
+		if (this.server != null) {
+			if(!inhibitInferRootDN && fixEmptyAndTrim(rootDN) == null) rootDN = fixNull(inferRootDN(server));
+			this.rootDN = rootDN.trim();
+		} else {
+			this.rootDN = null;
+		}
+
+		this.userSearchBase = fixNull(userSearchBase).trim();
+		userSearch = fixEmptyAndTrim(userSearch);
+		this.userSearch = userSearch != null ? userSearch : "uid={0}";
+		this.groupSearchBase = fixEmptyAndTrim(groupSearchBase);
+		this.groupSearchFilter = fixEmptyAndTrim(groupSearchFilter);
+		this.groupMembershipFilter = fixEmptyAndTrim(groupMembershipFilter);
+		this.groupNameAttribute = fixEmptyAndTrim(groupNameAttribute);
+
+		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
+
+		authorities = new GrantedAuthority[0];
+
+		this.disableLdapEmailResolver = disableLdapEmailResolver;
+		this.displayNameLdapAttribute = displayNameLdapAttribute;
+		this.emailAddressLdapAttribute = emailAddressLdapAttribute;
+
+		this.authorizationTypeMappingFactory = authorizationTypeMappingFactory;
+	}
+
+	public Object readResolve() throws ObjectStreamException {
+		// We are using LDAP authorization model
+		if (getServerUrl() != null) {
+			LdapAuthorizationType ldapAuthorizationType = new LdapAuthorizationType(
+					server,
+					rootDN,
+					inhibitInferRootDN,
+					userSearchBase,
+					userSearch,
+					groupSearchBase,
+					groupSearchFilter,
+					groupMembershipFilter,
+					groupNameAttribute,
+					managerDN,
+					managerPassword,
+					displayNameLdapAttribute,
+					emailAddressLdapAttribute,
+					disableLdapEmailResolver,
+					updateInterval
+			);
+
+			this.authorizationTypeMappingFactory = ldapAuthorizationType;
+		} else {
+			GroupsAuthorizationType groupsAuthorizationType = new GroupsAuthorizationType(
+					headerGroups,
+					headerGroupsDelimiter
+			);
+			this.authorizationTypeMappingFactory = groupsAuthorizationType;
+
+		}
+		return this;
+	}
+
 	/**
 	 * Name of the HTTP header to look at.
 	 */
@@ -338,14 +442,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return forwardedUser;
 	}
 
+	@Deprecated
 	public String getHeaderGroups() {
 		return headerGroups;
 	}
 
+	@Deprecated
 	public String getHeaderGroupsDelimiter() {
 		return headerGroupsDelimiter;
 	}
 
+	@Deprecated
 	@CheckForNull
 	public String getServerUrl() {
 		if (server == null) {
@@ -362,35 +469,47 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return buf.toString();
 	}
 
+	@Deprecated
 	public String getGroupSearchFilter() {
 		return groupSearchFilter;
 	}
 
+	@Deprecated
 	public String getGroupMembershipFilter() {
 		return groupMembershipFilter;
 	}
-	
+
+	@Deprecated
 	public String getGroupNameAttribute() {
 		return groupNameAttribute;
 	}
-	
+
+	@Deprecated
 	public void setGroupNameAttribute(String groupNameAttribute) {
 		this.groupNameAttribute = groupNameAttribute;
 	}
-	
+
+	@Deprecated
 	public String getDisplayNameLdapAttribute() {
 		return displayNameLdapAttribute;
 	}
-	
+
+	@Deprecated
 	public String getEmailAddressLdapAttribute() {
 		return emailAddressLdapAttribute;
 	}
-	
+
+	@Restricted(NoExternalUse.class)
+	public AuthorizationTypeMappingFactory getAuthorizationTypeMappingFactory() {
+		return authorizationTypeMappingFactory;
+	}
+
 	/**
 	 * Infer the root DN.
 	 *
 	 * @return null if not found.
 	 */
+	@Deprecated
 	private String inferRootDN(String server) {
 		try {
 			Hashtable<String,String> props = new Hashtable<String,String>();
@@ -421,6 +540,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 	}
 
+	@Deprecated
 	@Nullable
 	public static String toProviderUrl(@CheckForNull String serverUrl, @CheckForNull String rootDN) {
 		if (serverUrl == null) {
@@ -439,14 +559,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return buf.toString();
 	}
 
+	@Deprecated
 	public String getManagerPassword() {
 		return Scrambler.descramble(managerPassword);
 	}
 
+	@Deprecated
 	public int getUpdateInterval() {
 		return updateInterval;
 	}
-	
+
+	@Deprecated
 	public String getLDAPURL() {
 		return toProviderUrl(getServerUrl(), fixNull(rootDN));
 	}
@@ -491,65 +614,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				        userFromHeader = userFromApiToken;
 					}
 
-                    if (authContext == null) {
-                        authContext = new Hashtable<>();
-                    }
-
-					if (getLDAPURL() != null) {
-
-						GrantedAuthority []  storedGrants = authContext.get(userFromHeader);
-						if (storedGrants != null && storedGrants.length > 1) {
-							authorities = retrieveAuthoritiesIfNecessary(userFromHeader, storedGrants);
-						} else {
-							try {
-								LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
-								authorities = userDetails.getAuthorities();
-
-								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-
-							} catch (UsernameNotFoundException e) {
-								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
-
-								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-							}
-						}
-
-					} else {
-						String groups = r.getHeader(headerGroups);
-
-						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
-						localAuthorities.add(AUTHENTICATED_AUTHORITY);
-
-						if (groups != null) {
-							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
-							while (tokenizer.hasMoreTokens()) {
-								final String token = tokenizer.nextToken().trim();
-								localAuthorities.add(new GrantedAuthorityImpl(token));
-							}
-						}
-
-						authorities = localAuthorities.toArray(new GrantedAuthority[0]);
-
-						SearchTemplate searchTemplate = new UserSearchTemplate(userFromHeader);
-
-						Set<String> foundAuthorities = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-						Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-
-						String[] authString = foundAuthorities.toArray(new String[0]);
-						for (int i = 0; i < authString.length; i++) {
-							tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
-						}
-
-						authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
-						authContext.put(userFromHeader, authorities);
-
-						auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
-					}
-					authContext.put(userFromHeader, authorities);
+					authorities = authorizationTypeMappingFactory.retrieveAuthorities(userFromHeader, r);
 					auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
 				}
 				
@@ -588,15 +653,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public SecurityComponents createSecurityComponents() throws DataAccessException {
 		Binding binding = new Binding();
 		binding.setVariable("instance", this);
+		binding.setVariable("instanceAuthorizationType", this.authorizationTypeMappingFactory);
 
 		BeanBuilder builder = new BeanBuilder(Jenkins.getActiveInstance().pluginManager.uberClassLoader);
 
-		String fileName;
-		if (getLDAPURL() != null) {
-			fileName = "ReverseProxyLDAPSecurityRealm.groovy";
-		} else {
-			fileName = "ReverseProxySecurityRealm.groovy";
-		}
+		String fileName = authorizationTypeMappingFactory.getFilename();
 
 		File override = new File(Jenkins.getActiveInstance().getRootDir(), fileName);
 		try(InputStream istream = override.exists()
@@ -612,25 +673,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 		WebApplicationContext appContext = builder.createApplicationContext();
 
-		if (getLDAPURL() == null) {
-			proxyTemplate = new ReverseProxySearchTemplate();
-
-			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ReverseProxyUserDetailsService(appContext));
-		} else {
-			ldapTemplate = new LdapTemplate(findBean(InitialDirContextFactory.class, appContext));
-
-			if (groupMembershipFilter != null || groupNameAttribute != null) {
-				ProxyLDAPAuthoritiesPopulator authoritiesPopulator = findBean(ProxyLDAPAuthoritiesPopulator.class, appContext);
-		        if (groupMembershipFilter != null) {
-			        authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
-		        }
-		        if (groupNameAttribute != null) {					
-		        	authoritiesPopulator.setGroupRoleAttribute(groupNameAttribute);
-				}
-			}
-
-			return new SecurityComponents(findBean(AuthenticationManager.class, appContext), new ProxyLDAPUserDetailsService(this, appContext));
-		}
+		return authorizationTypeMappingFactory.createUserDetailService(appContext);
 	}
 
 	/**
@@ -639,12 +682,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
 		UserDetails userDetails = getSecurityComponents().userDetails.loadUserByUsername(username);
-        if (userDetails instanceof LdapUserDetails) {
-            updateLdapUserDetails((LdapUserDetails) userDetails);
-        }
         return userDetails;
 	}
 
+	@Deprecated
     public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
         LOGGER.log(Level.FINEST, "displayNameLdapAttribute" + displayNameLdapAttribute);
         LOGGER.log(Level.FINEST, "disableLdapEmailResolver" + disableLdapEmailResolver);
@@ -691,22 +732,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	@Override
 	@SuppressWarnings("unchecked")
 	public GroupDetails loadGroupByGroupname(String groupname) throws UsernameNotFoundException, DataAccessException {
-
-		final Set<String> groups;
-
-		if (getLDAPURL() != null) {
-			// TODO: obtain a DN instead so that we can obtain multiple attributes later
-			String searchBase = groupSearchBase != null ? groupSearchBase : "";
-			String searchFilter = groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH;
-			groups = ldapTemplate.searchForSingleAttributeValues(searchBase, searchFilter, new String[]{groupname}, "cn");
-		} else {
-			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-			GrantedAuthority[] authorities = authContext != null ? authContext.get(auth.getName()) : null;
-
-			SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
-
-			groups = proxyTemplate.searchForSingleAttributeValues(searchTemplate, authorities);
-		}
+		final Set<String> groups = authorizationTypeMappingFactory.loadGroupByGroupname(groupname);
 
 		if(groups.isEmpty())
 			throw new UsernameNotFoundException(groupname);
@@ -732,63 +758,6 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			return Messages.ReverseProxySecurityRealm_DisplayName();
 		}
 
-		public FormValidation doServerCheck(
-				@QueryParameter final String server,
-				@QueryParameter final String managerDN,
-				@QueryParameter final String managerPassword) {
-
-			final String trimmedServer = fixEmptyAndTrim(server);
-			if (trimmedServer == null) {
-				return FormValidation.error("Server is null or empty");
-			}
-
-			if (!Jenkins.getActiveInstance().hasPermission(Jenkins.ADMINISTER)) {
-				return FormValidation.ok();
-			}
-
-			try {
-				Hashtable<String,String> props = new Hashtable<String,String>();
-				if (managerDN != null && managerDN.trim().length() > 0 && !"undefined".equals(managerDN)) {
-					props.put(Context.SECURITY_PRINCIPAL, managerDN);
-				}
-				if (managerPassword!=null && managerPassword.trim().length() > 0 && !"undefined".equals(managerPassword)) {
-					props.put(Context.SECURITY_CREDENTIALS, managerPassword);
-				}
-
-				props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-				props.put(Context.PROVIDER_URL, toProviderUrl(trimmedServer, ""));
-
-
-				DirContext ctx = new InitialDirContext(props);
-				ctx.getAttributes("");
-				return FormValidation.ok();   // connected
-			} catch (NamingException e) {
-				// trouble-shoot
-				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(trimmedServer.trim());
-				if(!m.matches())
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
-
-				try {
-					InetAddress adrs = InetAddress.getByName(m.group(2));
-					int port = m.group(1) != null ? 636 : 389;
-					if(m.group(3) != null)
-						port = Integer.parseInt(m.group(3));
-					Socket s = new Socket(adrs,port);
-					s.close();
-				} catch (UnknownHostException x) {
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
-				} catch (IOException x) {
-					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, x.getMessage()));
-				}
-
-				// otherwise we don't know what caused it, so fall back to the general error report
-				// getMessage() alone doesn't offer enough
-				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, e));
-			} catch (NumberFormatException x) {
-				// The getLdapCtxInstance method throws this if it fails to parse the port number
-				return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());
-			}
-		}
 	}
 
 	public static class ReverseProxyUserDetailsService implements UserDetailsService {
@@ -818,6 +787,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		}
 	}
 
+	@Deprecated
 	private GrantedAuthority[] retrieveAuthoritiesIfNecessary(final String userFromHeader, final GrantedAuthority[] storedGrants) {
 		
 		GrantedAuthority[] authorities = storedGrants;
@@ -861,6 +831,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * If the given "server name" is just a host name (plus optional host name), add ldap:// prefix.
 	 * Otherwise assume it already contains the scheme, and leave it intact.
 	 */
+	@Deprecated
 	private static String addPrefix(String server) {
 		if(server.contains("://"))  return server;
 		else    return "ldap://"+server;

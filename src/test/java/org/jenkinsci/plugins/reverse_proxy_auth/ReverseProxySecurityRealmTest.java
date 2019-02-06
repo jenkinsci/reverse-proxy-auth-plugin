@@ -6,12 +6,19 @@ import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
+import org.jenkinsci.plugins.reverse_proxy_auth.types.GroupsAuthorizationType;
+import org.jenkinsci.plugins.reverse_proxy_auth.types.LdapAuthorizationType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.recipes.LocalData;
+
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 import java.util.concurrent.Callable;
 
@@ -56,7 +63,8 @@ public class ReverseProxySecurityRealmTest {
     }
 
     private ReverseProxySecurityRealm createBasicRealm() {
-        return new ReverseProxySecurityRealm(
+        GroupsAuthorizationType groupsAuthorizationType = new GroupsAuthorizationType("X-Forwarded-Groups", "|");
+        ReverseProxySecurityRealm reverseProxySecurityRealm = new ReverseProxySecurityRealm(
                 "X-Forwarded-User",   // forwardedUser
                 "X-Forwarded-Groups", // headerGroups
                 "|",                  // headerGroupsDelimiter
@@ -76,7 +84,37 @@ public class ReverseProxySecurityRealmTest {
                 15,                   // updateInterval
                 false,                // disableLdapEmailResolver
                 "",                   // displayNameLdapAttribute
-                ""                    // emailAddressLdapAttribute
+                "",                    // emailAddressLdapAttribute
+                groupsAuthorizationType
         );
+        return reverseProxySecurityRealm;
+    }
+
+    @LocalData
+    @Test
+    public void readResolveLdap() {
+        ReverseProxySecurityRealm reverseProxySecurityRealm = (ReverseProxySecurityRealm) jenkins.getSecurityRealm();
+        LdapAuthorizationType ldapAuthorizationType = (LdapAuthorizationType) reverseProxySecurityRealm.getAuthorizationTypeMappingFactory();
+        assertThat(ldapAuthorizationType.server, is("ldap://127.0.0.1:3890"));
+        assertThat(ldapAuthorizationType.rootDN, is("dc=corporation,dc=net"));
+        assertThat(ldapAuthorizationType.inhibitInferRootDN, is(false));
+        assertThat(ldapAuthorizationType.userSearchBase, is("ou=employees,ou=people"));
+        assertThat(ldapAuthorizationType.userSearch, is("uid={0}"));
+        assertThat(ldapAuthorizationType.groupSearchBase, is("ou=groups"));
+        assertThat(ldapAuthorizationType.groupSearchFilter, is("(uniqueMember={0})"));
+        assertThat(ldapAuthorizationType.managerDN, is("cn=admin,dc=corporation,dc=net"));
+        assertThat(ldapAuthorizationType.disableLdapEmailResolver, is(false));
+        assertThat(ldapAuthorizationType.displayNameLdapAttribute, isEmptyOrNullString());
+        assertThat(ldapAuthorizationType.emailAddressLdapAttribute, isEmptyOrNullString());
+    }
+
+    @LocalData
+    @Test
+    public void readResolveGroups() {
+        ReverseProxySecurityRealm reverseProxySecurityRealm = (ReverseProxySecurityRealm) jenkins.getSecurityRealm();
+        GroupsAuthorizationType groupsAuthorizationType = (GroupsAuthorizationType) reverseProxySecurityRealm.getAuthorizationTypeMappingFactory();
+        assertThat(groupsAuthorizationType.headerGroups, is("X-Forwarded-Groups"));
+        assertThat(groupsAuthorizationType.headerGroupsDelimiter, is("|"));
+
     }
 }
