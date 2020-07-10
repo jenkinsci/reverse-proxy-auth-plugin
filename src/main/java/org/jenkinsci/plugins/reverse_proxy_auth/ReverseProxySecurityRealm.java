@@ -23,22 +23,67 @@
  */
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
-import static hudson.Util.fixEmpty;
-import static hudson.Util.fixEmptyAndTrim;
-import static hudson.Util.fixNull;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.User;
-import hudson.security.*;
+import hudson.security.ChainedServletFilter;
+import hudson.security.GroupDetails;
+import hudson.security.LDAPSecurityRealm;
+import hudson.security.SecurityRealm;
+import hudson.security.UserMayOrMayNotExistException;
 import hudson.tasks.Mailer;
 import hudson.tasks.Mailer.UserProperty;
 import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.spring.BeanBuilder;
+import jenkins.model.Jenkins;
+import jenkins.security.ApiTokenProperty;
+import org.acegisecurity.Authentication;
+import org.acegisecurity.AuthenticationManager;
+import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.GrantedAuthorityImpl;
+import org.acegisecurity.context.SecurityContextHolder;
+import org.acegisecurity.ldap.InitialDirContextFactory;
+import org.acegisecurity.ldap.LdapDataAccessException;
+import org.acegisecurity.ldap.LdapTemplate;
+import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
+import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
+import org.acegisecurity.userdetails.UserDetails;
+import org.acegisecurity.userdetails.UserDetailsService;
+import org.acegisecurity.userdetails.UsernameNotFoundException;
+import org.acegisecurity.userdetails.ldap.LdapUserDetails;
+import org.apache.commons.lang.StringUtils;
+import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
+import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopulator;
+import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
+import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.web.context.WebApplicationContext;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.naming.Context;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -59,54 +104,9 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
-import javax.naming.Context;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-
-import jenkins.model.Jenkins;
-import jenkins.security.ApiTokenProperty;
-
-import org.acegisecurity.Authentication;
-import org.acegisecurity.AuthenticationManager;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
-import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.ldap.InitialDirContextFactory;
-import org.acegisecurity.ldap.LdapDataAccessException;
-import org.acegisecurity.ldap.LdapTemplate;
-import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.userdetails.UserDetails;
-import org.acegisecurity.userdetails.UserDetailsService;
-import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
-import org.apache.commons.io.input.AutoCloseInputStream;
-import org.apache.commons.lang.StringUtils;
-import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
-import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
-import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopulator;
-import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.web.context.WebApplicationContext;
+import static hudson.Util.fixEmpty;
+import static hudson.Util.fixEmptyAndTrim;
+import static hudson.Util.fixNull;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -742,7 +742,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				return FormValidation.error("Server is null or empty");
 			}
 
-			if (!Jenkins.getActiveInstance().hasPermission(Jenkins.ADMINISTER)) {
+			if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
 				return FormValidation.ok();
 			}
 
@@ -766,7 +766,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 				// trouble-shoot
 				Matcher m = Pattern.compile("(ldaps?://)?([^:]+)(?:\\:(\\d+))?(\\s+(ldaps?://)?([^:]+)(?:\\:(\\d+))?)*").matcher(trimmedServer.trim());
 				if(!m.matches())
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_SyntaxOfServerField());
+					return FormValidation.error(Messages.ReverseProxySecurityRealm_SyntaxOfServerField());
 
 				try {
 					InetAddress adrs = InetAddress.getByName(m.group(2));
@@ -776,17 +776,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 					Socket s = new Socket(adrs,port);
 					s.close();
 				} catch (UnknownHostException x) {
-					return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_UnknownHost(x.getMessage()));
+					return FormValidation.error(Messages.ReverseProxySecurityRealm_UnknownHost(x.getMessage()));
 				} catch (IOException x) {
-					return FormValidation.error(x,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, x.getMessage()));
+					return FormValidation.error(x,Messages.ReverseProxySecurityRealm_UnableToConnect(trimmedServer, x.getMessage()));
 				}
 
 				// otherwise we don't know what caused it, so fall back to the general error report
 				// getMessage() alone doesn't offer enough
-				return FormValidation.error(e,hudson.security.Messages.LDAPSecurityRealm_UnableToConnect(trimmedServer, e));
+				return FormValidation.error(e,Messages.ReverseProxySecurityRealm_UnableToConnect(trimmedServer, e));
 			} catch (NumberFormatException x) {
 				// The getLdapCtxInstance method throws this if it fails to parse the port number
-				return FormValidation.error(hudson.security.Messages.LDAPSecurityRealm_InvalidPortNumber());
+				return FormValidation.error(Messages.ReverseProxySecurityRealm_InvalidPortNumber());
 			}
 		}
 	}
