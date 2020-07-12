@@ -10,7 +10,8 @@
   <version>1.6.4-SNAPSHOT</version>
   <packaging>hpi</packaging>
   <properties>
-    <jenkins.version>2.235.1</jenkins.version>
+<!--    <jenkins.version>2.244</jenkins.version>-->
+    <jenkins.version>2.245-LOCAL</jenkins.version>
     <java.level>8</java.level>
   </properties>
 

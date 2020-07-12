@@ -48,7 +48,6 @@ import org.acegisecurity.context.SecurityContextHolder;
 import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.ldap.LdapDataAccessException;
 import org.acegisecurity.ldap.LdapTemplate;
-import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UserDetailsService;
@@ -189,7 +188,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 *
 	 * Normally "uid={0}"
 	 *
-	 * @see FilterBasedLdapUserSearch
+	 * @see org.acegisecurity.ldap.search.FilterBasedLdapUserSearch
 	 */
 	public final String userSearch;
 
@@ -199,7 +198,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * Normally "" to indicate the full LDAP search, but can be often narrowed down to
 	 * something like "ou=groups"
 	 *
-	 * @see FilterBasedLdapUserSearch
+	 * @see org.acegisecurity.ldap.search.FilterBasedLdapUserSearch
 	 */
 	public final String groupSearchBase;
 
