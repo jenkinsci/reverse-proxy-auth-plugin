@@ -23,23 +23,61 @@
  */
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
+import static hudson.Util.fixEmpty;
+import static hudson.Util.fixEmptyAndTrim;
+import static hudson.Util.fixNull;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import groovy.lang.Binding;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.User;
-import hudson.security.ChainedServletFilter;
-import hudson.security.GroupDetails;
-import hudson.security.LDAPSecurityRealm;
-import hudson.security.SecurityRealm;
-import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.*;
 import hudson.tasks.Mailer;
 import hudson.tasks.Mailer.UserProperty;
 import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.spring.BeanBuilder;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
+import javax.naming.Context;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
+
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.GrantedAuthority;
@@ -68,45 +106,6 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.web.context.WebApplicationContext;
-
-import javax.annotation.CheckForNull;
-import javax.annotation.Nullable;
-import javax.naming.Context;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static hudson.Util.fixEmpty;
-import static hudson.Util.fixEmptyAndTrim;
-import static hudson.Util.fixNull;
 
 /**
  * @author Kohsuke Kawaguchi
