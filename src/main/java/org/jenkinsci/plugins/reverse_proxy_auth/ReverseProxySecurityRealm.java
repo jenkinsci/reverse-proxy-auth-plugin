@@ -123,7 +123,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * WANTED: The specification of the syntax.
 	 */
 	@SuppressFBWarnings(value = "MS_SHOULD_BE_FINAL", justification = "May be used in system groovy scripts")
-	public static String GROUP_SEARCH = System.getProperty(LDAPSecurityRealm.class.getName()+".groupSearch",
+	public static String GROUP_SEARCH = System.getProperty("hudson.security.LDAPSecurityRealm.groupSearch",
 			"(& (cn={0}) (| (objectclass=groupOfNames) (objectclass=groupOfUniqueNames) (objectclass=posixGroup)))");
 
 	/**
