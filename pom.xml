@@ -3,14 +3,15 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.4</version>
+    <version>4.9</version>
+    <relativePath />
   </parent>
 
   <artifactId>reverse-proxy-auth-plugin</artifactId>
   <version>1.6.4-SNAPSHOT</version>
   <packaging>hpi</packaging>
   <properties>
-    <jenkins.version>2.235.1</jenkins.version>
+    <jenkins.version>2.235.3</jenkins.version>
     <java.level>8</java.level>
   </properties>
 
@@ -46,15 +47,20 @@
   </scm>
 
     <dependencies>
+        <dependency> <!-- to appear earlier in the test CP for purposes of PCT -->
+            <groupId>org.jenkins-ci.main</groupId>
+            <artifactId>jenkins-core</artifactId>
+            <version>${jenkins.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>ldap</artifactId>
-            <version>1.8</version>
+            <version>1.26</version>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>mailer</artifactId>
-            <version>1.5</version>
+            <version>1.20</version>
         </dependency>
     </dependencies>
 
