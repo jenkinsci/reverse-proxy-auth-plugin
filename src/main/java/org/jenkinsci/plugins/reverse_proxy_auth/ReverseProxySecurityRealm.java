@@ -252,7 +252,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * The username retrieved from the header field, which is represented by the forwardedUser attribute.
 	 */
-	public String retrievedUser;
+	public transient String retrievedUser;
 
 	/**
 	 * Header name of the groups field.
