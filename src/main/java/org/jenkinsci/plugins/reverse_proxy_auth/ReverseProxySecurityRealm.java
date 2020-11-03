@@ -614,7 +614,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             }
             dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
 			ldapTemplate = new LdapTemplate(dirContextFactory);
-            FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, groupSearchFilter, dirContextFactory);
+            FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH, dirContextFactory);
             ldapUserSearch.setSearchSubtree(true);
             BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(dirContextFactory);
             // this is when we need to find it.
