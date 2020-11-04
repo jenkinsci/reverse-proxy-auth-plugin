@@ -510,7 +510,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
 
 							} catch (UsernameNotFoundException e) {
-								LOGGER.log(Level.WARNING, "User not found in the LDAP directory", e);
+								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
 
 								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
 								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
@@ -614,7 +614,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             }
             dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
 			ldapTemplate = new LdapTemplate(dirContextFactory);
-            FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH, dirContextFactory);
+            FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, userSearch, dirContextFactory);
             ldapUserSearch.setSearchSubtree(true);
             BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(dirContextFactory);
             // this is when we need to find it.
