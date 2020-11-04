@@ -510,7 +510,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 								authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
 
 							} catch (UsernameNotFoundException e) {
-								LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
+								LOGGER.log(Level.WARNING, "User not found in the LDAP directory", e);
 
 								Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
 								tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
