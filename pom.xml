@@ -19,7 +19,7 @@
   </properties>
 
   <name>Jenkins Reverse Proxy Auth Plugin</name>
-  <url>https://wiki.jenkins.io/display/JENKINS/Reverse+Proxy+Auth+Plugin</url>
+  <url>https://github.com/jenkinsci/reverse-proxy-auth-plugin</url>
 
   <developers>
     <developer>
