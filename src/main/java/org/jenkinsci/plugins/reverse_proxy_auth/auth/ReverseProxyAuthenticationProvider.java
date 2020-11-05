@@ -122,8 +122,7 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
 	protected UserDetails retrieveUser(String username, UsernamePasswordAuthenticationToken authentication)
 			throws AuthenticationException {
 		if (!StringUtils.hasLength(username)) {
-			throw new BadCredentialsException(messages.getMessage("ReverseProxyAuthenticationProvider.emptyUsername",
-					"Empty Username"));
+			throw new BadCredentialsException("Empty Username");
 		}
 
 		if (logger.isDebugEnabled()) {
