@@ -11,7 +11,7 @@
   <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
   <properties>
-    <revision>1.6.4</revision>
+    <revision>1.7.0</revision>
     <changelist>-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/reverse-proxy-auth-plugin</gitHubRepo>
     <jenkins.version>2.235.3</jenkins.version>
