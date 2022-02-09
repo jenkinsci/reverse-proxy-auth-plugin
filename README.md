@@ -219,15 +219,15 @@ While the pages talk primarily about Apache / NGinX / HAProxy / Squid,
 they also have information that applies to other reverse proxies.
 
 -   [Running Jenkins behind
-    Apache](https://wiki.jenkins.io/display/JENKINS/Running+Jenkins+behind+Apache)
+    Apache](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-apache)
 -   [Running Jenkins behind
-    Nginx](https://wiki.jenkins.io/display/JENKINS/Running+Jenkins+behind+Nginx)
+    Nginx](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-nginx)
 -   [Running Jenkins behind
-    HAProxy](https://wiki.jenkins.io/display/JENKINS/Running+Jenkins+behind+HAProxy)
+    HAProxy](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-haproxy)
 -   [Running Jenkins behind
-    Squid](https://wiki.jenkins.io/display/JENKINS/Running+Jenkins+behind+Squid)
+    Squid](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-squid)
 -   [Running Jenkins behind
-    IIS](https://wiki.jenkins.io/display/JENKINS/Running+Jenkins+behind+IIS)
+    IIS](https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-iis)
 
 If using Apache check that *nocanon* is set on *ProxyPass* and
 that *AllowEncodedSlashes* is set as per the Apache link above.
