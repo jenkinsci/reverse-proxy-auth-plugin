@@ -239,6 +239,12 @@ directive must be placed inside the *VirtualHost* definition.
 
 (TODO switch to Release Drafter)
 
+### Version 1.7.2 (2022-03-02)
+
+Release failed due to Javadoc issues.
+### Version 1.7.1 (2020-11-05)
+
+Documentation in GH. Should be no functional change.
 ### Version 1.7.0 (2020-11-05)
 
 Compatibility with [JEP-227](https://jenkins.io/jep/227). Should be no functional change.
