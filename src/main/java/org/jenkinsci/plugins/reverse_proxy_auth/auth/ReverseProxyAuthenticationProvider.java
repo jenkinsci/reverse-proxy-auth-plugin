@@ -95,11 +95,11 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
 	}
 
 	/**
-	 * Creates the final <tt>UserDetails</tt> object that will be returned by the provider once the user has
-	 * been authenticated.<p>The <tt>ReverseProxyAuthoritiesPopulator</tt> will be used to create the granted
+	 * Creates the final {@code UserDetails} object that will be returned by the provider once the user has
+	 * been authenticated.<p>The {@code ReverseProxyAuthoritiesPopulator} will be used to create the granted
 	 * authorites for the user.</p>
 	 *  <p>Can be overridden to customize the creation of the final UserDetails instance. The default will
-	 * merge any additional authorities retrieved from the populator with the propertis of original <tt>ldapUser</tt>
+	 * merge any additional authorities retrieved from the populator with the propertis of original {@code ldapUser}
 	 * object and set the values of the username and password.</p>
 	 *
 	 * @param user The intermediate LdapUserDetails instance returned by the authenticator.

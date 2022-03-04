@@ -62,7 +62,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 	protected Hashtable<String, GrantedAuthority[]> authContext;
 
 	/**
-	 * Constructor for group search scenarios. <tt>userRoleAttributes</tt> may still be
+	 * Constructor for group search scenarios. {@code userRoleAttributes} may still be
 	 * set as a property.
 	 * @param authContext Authentication context.
 	 *                    May be {@code null}
