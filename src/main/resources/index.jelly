@@ -1,0 +1,4 @@
+<?jelly escape-by-default='true'?>
+<div>
+  This plugin provides easy and simple authentication and authorisation using SSO techniques.
+</div>
