@@ -239,6 +239,15 @@ directive must be placed inside the *VirtualHost* definition.
 
 (TODO switch to Release Drafter)
 
+### Version 1.7.4 (unreleased)
+
+- Support for setting `com.sun.jndi.ldap.connect.timeout` using 'LDAP Connect Timeout' field
+- Support for setting `com.sun.jndi.ldap.read.timeout` using 'LDAP Read Timeout' field
+
+### Version 1.7.3 (2022-03-04)
+
+- Fixed Javadoc
+
 ### Version 1.7.2 (2022-03-02)
 
 Release failed due to Javadoc issues.
