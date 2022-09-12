@@ -613,35 +613,35 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public SecurityComponents createSecurityComponents() throws DataAccessException {
 		if (getLDAPURL() == null) {
 			proxyTemplate = new ReverseProxySearchTemplate();
-            DefaultReverseProxyAuthenticator authenticator = new DefaultReverseProxyAuthenticator(retrievedUser, authorities);
-            ReverseProxyAuthoritiesPopulatorImpl authoritiesPopulator = new ReverseProxyAuthoritiesPopulatorImpl(authContext);
-            ProviderManager pm = new ProviderManager();
-            List<AuthenticationProvider> providers = new ArrayList<>();
-            // talk to Reverse Proxy Authentication
-            providers.add(new ReverseProxyAuthenticationProvider(authenticator, authoritiesPopulator));
-            // these providers apply everywhere
-            RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
-            rmap.setKey(Jenkins.getInstance().getSecretKey());
-            providers.add(rmap);
-            // this doesn't mean we allow anonymous access.
-            // we just authenticate anonymous users as such,
-            // so that later authorization can reject them if so configured
-            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
-            aap.setKey("anonymous");
-            providers.add(aap);
-            pm.setProviders(providers);
+			DefaultReverseProxyAuthenticator authenticator = new DefaultReverseProxyAuthenticator(retrievedUser, authorities);
+			ReverseProxyAuthoritiesPopulatorImpl authoritiesPopulator = new ReverseProxyAuthoritiesPopulatorImpl(authContext);
+			ProviderManager pm = new ProviderManager();
+			List<AuthenticationProvider> providers = new ArrayList<>();
+			// talk to Reverse Proxy Authentication
+			providers.add(new ReverseProxyAuthenticationProvider(authenticator, authoritiesPopulator));
+			// these providers apply everywhere
+			RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
+			rmap.setKey(Jenkins.getInstance().getSecretKey());
+			providers.add(rmap);
+			// this doesn't mean we allow anonymous access.
+			// we just authenticate anonymous users as such,
+			// so that later authorization can reject them if so configured
+			AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
+			aap.setKey("anonymous");
+			providers.add(aap);
+			pm.setProviders(providers);
 			return new SecurityComponents(pm, new ReverseProxyUserDetailsService(authoritiesPopulator));
 		} else {
-            DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
-            if (managerDN != null) {
-                dirContextFactory.setManagerDn(managerDN);
-                dirContextFactory.setManagerPassword(getManagerPassword());
-            }
-						Map<String, Object> envVars = new HashMap<>();
-						envVars.put(Context.REFERRAL, "follow");
-						envVars.put("com.sun.jndi.ldap.connect.timeout", Integer.toString(CONNECT_TIMEOUT));
-						envVars.put("com.sun.jndi.ldap.read.timeout", Integer.toString(READ_TIMEOUT));
-            dirContextFactory.setExtraEnvVars(envVars);
+			DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
+			if (managerDN != null) {
+				dirContextFactory.setManagerDn(managerDN);
+				dirContextFactory.setManagerPassword(getManagerPassword());
+			}
+			Map<String, Object> envVars = new HashMap<>();
+			envVars.put(Context.REFERRAL, "follow");
+			envVars.put("com.sun.jndi.ldap.connect.timeout", Integer.toString(CONNECT_TIMEOUT));
+			envVars.put("com.sun.jndi.ldap.read.timeout", Integer.toString(READ_TIMEOUT));
+			dirContextFactory.setExtraEnvVars(envVars);
 			ldapTemplate = new LdapTemplate(dirContextFactory);
 			FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, userSearch, dirContextFactory);
 			ldapUserSearch.setSearchSubtree(true);
