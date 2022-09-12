@@ -74,6 +74,8 @@ public class ReverseProxySecurityRealmTest {
                 "",                   // managerDN
                 "",                   // managerPassword
                 15,                   // updateInterval
+                5000,                 // ldapConnectTimeout
+                60000,                // ldapReadTimeout
                 false,                // disableLdapEmailResolver
                 "",                   // displayNameLdapAttribute
                 ""                    // emailAddressLdapAttribute
