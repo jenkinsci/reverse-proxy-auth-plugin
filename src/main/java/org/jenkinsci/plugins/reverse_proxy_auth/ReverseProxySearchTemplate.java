@@ -5,7 +5,7 @@ import java.util.Set;
 import org.acegisecurity.GrantedAuthority;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 
-import javax.annotation.CheckForNull;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
