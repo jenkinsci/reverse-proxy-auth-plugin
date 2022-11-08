@@ -1,6 +1,7 @@
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
 import hudson.security.SecurityRealm;
+import hudson.util.Secret;
 import jenkins.model.Jenkins;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
@@ -58,25 +59,25 @@ public class ReverseProxySecurityRealmTest {
     private ReverseProxySecurityRealm createBasicRealm() {
         return new ReverseProxySecurityRealm(
                 "X-Forwarded-User",   // forwardedUser
-                "X-Forwarded-Groups", // headerGroups
-                "|",                  // headerGroupsDelimiter
-                "",                   // customLogInUrl
-                "",                   // customLogOutUrl
-                "",                   // server
-                "",                   // rootDN
-                false,                // inhibitInferRootDN
-                "",                   // userSearchBase
-                "",                   // userSearch
-                "",                   // groupSearchBase
-                "",                   // groupSearchFilter
-                "",                   // groupMembershipFilter
-                "",                   // groupNameAttribute
-                "",                   // managerDN
-                "",                   // managerPassword
-                15,                   // updateInterval
-                false,                // disableLdapEmailResolver
-                "",                   // displayNameLdapAttribute
-                ""                    // emailAddressLdapAttribute
+                "X-Forwarded-Groups",       // headerGroups
+                "|",                        // headerGroupsDelimiter
+                "",                         // customLogInUrl
+                "",                         // customLogOutUrl
+                "",                         // server
+                "",                         // rootDN
+                false,                      // inhibitInferRootDN
+                "",                         // userSearchBase
+                "",                         // userSearch
+                "",                         // groupSearchBase
+                "",                         // groupSearchFilter
+                "",                         // groupMembershipFilter
+                "",                         // groupNameAttribute
+                "",                         // managerDN
+                Secret.fromString(""), // managerPassword
+                15,                         // updateInterval
+                false,                      // disableLdapEmailResolver
+                "",                         // displayNameLdapAttribute
+                ""                          // emailAddressLdapAttribute
         );
     }
 }

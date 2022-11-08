@@ -70,6 +70,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 
+import hudson.util.Secret;
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
 
@@ -134,7 +135,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	/**
 	 * Scrambled password, used to first bind to LDAP.
 	 */
-	private final String managerPassword;
+	private final Secret managerPassword;
 
 	/**
 	 * Search Template used when the groups are in the header.
@@ -278,7 +279,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, Secret managerPassword,
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
@@ -304,7 +305,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 		this.server = fixEmptyAndTrim(server);
 		this.managerDN = fixEmpty(managerDN);
-		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
+		this.managerPassword = managerPassword;
 		this.inhibitInferRootDN = inhibitInferRootDN;
 
 		if (this.server != null) {
@@ -396,7 +397,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			Hashtable<String,String> props = new Hashtable<String,String>();
 			if(managerDN != null) {
 				props.put(Context.SECURITY_PRINCIPAL, managerDN);
-				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
+				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword().getPlainText());
 			}
 			props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
 			//TODO: should it pass null instead and check the result?
@@ -439,9 +440,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return buf.toString();
 	}
 
-	public String getManagerPassword() {
-		return Scrambler.descramble(managerPassword);
-	}
+	public Secret getManagerPassword() { return managerPassword; }
 
 	public int getUpdateInterval() {
 		return updateInterval;
@@ -610,7 +609,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
             if (managerDN != null) {
                 dirContextFactory.setManagerDn(managerDN);
-                dirContextFactory.setManagerPassword(getManagerPassword());
+                dirContextFactory.setManagerPassword(fixEmptyAndTrim(getManagerPassword().getPlainText()));
             }
             dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
 			ldapTemplate = new LdapTemplate(dirContextFactory);
