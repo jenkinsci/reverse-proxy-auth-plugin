@@ -1,7 +1,5 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.service;
 
-import hudson.security.UserMayOrMayNotExistException;
-
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,6 +16,8 @@ import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.acegisecurity.userdetails.ldap.LdapUserDetailsImpl;
 import org.apache.commons.collections.map.LRUMap;
 import org.springframework.dao.DataAccessException;
+
+import hudson.security.UserMayOrMayNotExistException;
 
 public class ProxyLDAPUserDetailsService implements UserDetailsService {
 

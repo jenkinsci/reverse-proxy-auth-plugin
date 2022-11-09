@@ -14,7 +14,8 @@ import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 
-import java.util.concurrent.Callable;
+import hudson.security.SecurityRealm;
+import jenkins.model.Jenkins;
 
 public class ReverseProxySecurityRealmTest {
     @Rule

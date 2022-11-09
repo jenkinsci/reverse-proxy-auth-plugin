@@ -1,5 +1,16 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Set;
+
+import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.GrantedAuthorityImpl;
+import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+
 /* Copyright 2004, 2005, 2006 Acegi Technology Pty Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,17 +27,6 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
  */
 
 import hudson.security.SecurityRealm;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Set;
-
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
-import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
-
-import javax.annotation.CheckForNull;
 
 
 /**

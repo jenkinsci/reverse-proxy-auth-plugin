@@ -1,7 +1,6 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.service;
 
 import static hudson.Util.fixNull;
-import hudson.security.SecurityRealm;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -13,6 +12,8 @@ import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.providers.ldap.LdapAuthoritiesPopulator;
 import org.acegisecurity.providers.ldap.populator.DefaultLdapAuthoritiesPopulator;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
+
+import hudson.security.SecurityRealm;
 
 /**
  * {@link LdapAuthoritiesPopulator} that adds the automatic 'authenticated' role.
