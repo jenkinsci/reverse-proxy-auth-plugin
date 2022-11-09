@@ -87,6 +87,12 @@ THE SOFTWARE.
     <f:entry title="${%Cache Update Interval}" >
       <f:textbox name="updateInterval" value="${instance.updateInterval}" default="15"/>
     </f:entry>
+    <f:entry title="${%LDAP Connect Timeout}" >
+      <f:textbox name="ldapConnectTimeout" value="${instance.ldapConnectTimeout}" default="5000"/>
+    </f:entry>
+    <f:entry title="${%LDAP Read Timeout}" >
+      <f:textbox name="ldapReadTimeout" value="${instance.ldapReadTimeout}" default="60000"/>
+    </f:entry>
   </f:advanced>
   
   <j:set var="uras" value="${app.unprotectedRootActions}"/>

@@ -41,14 +41,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -114,6 +107,9 @@ import org.springframework.dao.DataAccessException;
 public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
+
+	public static final int CONNECT_TIMEOUT = Integer.getInteger("ldap.connect.timeout", 5000);
+	public static final int READ_TIMEOUT = Integer.getInteger("ldap.read.timeout", 60000);
 
 	/**
 	 * LDAP filter to look for groups by their names.
@@ -236,6 +232,25 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * Sets an interval for updating the LDAP authorities. The interval is specified in minutes.
 	 */
 	public final int updateInterval;
+
+	/**
+	 * This is the socket connection timeout in milliseconds. If your LDAP servers are all close to your Jenkins server
+	 * you can probably set a small value, e.g. 5000 milliseconds. Setting a value smaller that this may result
+	 * in excessive timeouts due to the TCP/IP connection establishment retry mechanism.
+	 *
+	 * Passed to jndi context as 'com.sun.jndi.ldap.connect.timeout'.
+	 * Change requires Jenkins restart.
+	 */
+	public final int ldapConnectTimeout;
+
+	/**
+	 * This is the socket read timeout in milliseconds. If your LDAP queries are all fast you can probably set a low
+	 * value. A reasonable default is 60000 milliseconds.
+	 *
+	 * Passed to jndi context as 'com.sun.jndi.ldap.read.timeout'
+	 * Change requires Jenkins restart.
+	 */
+	public final int ldapReadTimeout;
 	
 	/**
 	 * The authorities that are granted to the authenticated user.
@@ -279,7 +294,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
 			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
-			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
+			Integer updateInterval, Integer ldapConnectTimeout, Integer ldapReadTimeout, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
 
@@ -323,6 +338,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		this.groupNameAttribute = fixEmptyAndTrim(groupNameAttribute);
 
 		this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
+		this.ldapConnectTimeout = (ldapConnectTimeout == null || ldapConnectTimeout <= 0) ? CONNECT_TIMEOUT : ldapConnectTimeout;
+		this.ldapReadTimeout = (ldapReadTimeout == null || ldapReadTimeout <= 0) ? READ_TIMEOUT : ldapReadTimeout;
 		
 		authorities = new GrantedAuthority[0];
 
@@ -446,7 +463,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public int getUpdateInterval() {
 		return updateInterval;
 	}
-	
+
+	public int getLdapConnectTimeout() {
+		return ldapConnectTimeout;
+	}
+
+	public int getLdapReadTimeout() {
+		return ldapReadTimeout;
+	}
+
 	public String getLDAPURL() {
 		return toProviderUrl(getServerUrl(), fixNull(rootDN));
 	}
@@ -588,59 +613,63 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public SecurityComponents createSecurityComponents() throws DataAccessException {
 		if (getLDAPURL() == null) {
 			proxyTemplate = new ReverseProxySearchTemplate();
-            DefaultReverseProxyAuthenticator authenticator = new DefaultReverseProxyAuthenticator(retrievedUser, authorities);
-            ReverseProxyAuthoritiesPopulatorImpl authoritiesPopulator = new ReverseProxyAuthoritiesPopulatorImpl(authContext);
-            ProviderManager pm = new ProviderManager();
-            List<AuthenticationProvider> providers = new ArrayList<>();
-            // talk to Reverse Proxy Authentication
-            providers.add(new ReverseProxyAuthenticationProvider(authenticator, authoritiesPopulator));
-            // these providers apply everywhere
-            RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
-            rmap.setKey(Jenkins.getInstance().getSecretKey());
-            providers.add(rmap);
-            // this doesn't mean we allow anonymous access.
-            // we just authenticate anonymous users as such,
-            // so that later authorization can reject them if so configured
-            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
-            aap.setKey("anonymous");
-            providers.add(aap);
-            pm.setProviders(providers);
+			DefaultReverseProxyAuthenticator authenticator = new DefaultReverseProxyAuthenticator(retrievedUser, authorities);
+			ReverseProxyAuthoritiesPopulatorImpl authoritiesPopulator = new ReverseProxyAuthoritiesPopulatorImpl(authContext);
+			ProviderManager pm = new ProviderManager();
+			List<AuthenticationProvider> providers = new ArrayList<>();
+			// talk to Reverse Proxy Authentication
+			providers.add(new ReverseProxyAuthenticationProvider(authenticator, authoritiesPopulator));
+			// these providers apply everywhere
+			RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
+			rmap.setKey(Jenkins.getInstance().getSecretKey());
+			providers.add(rmap);
+			// this doesn't mean we allow anonymous access.
+			// we just authenticate anonymous users as such,
+			// so that later authorization can reject them if so configured
+			AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
+			aap.setKey("anonymous");
+			providers.add(aap);
+			pm.setProviders(providers);
 			return new SecurityComponents(pm, new ReverseProxyUserDetailsService(authoritiesPopulator));
 		} else {
-            DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
-            if (managerDN != null) {
-                dirContextFactory.setManagerDn(managerDN);
-                dirContextFactory.setManagerPassword(getManagerPassword());
-            }
-            dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
+			DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
+			if (managerDN != null) {
+				dirContextFactory.setManagerDn(managerDN);
+				dirContextFactory.setManagerPassword(getManagerPassword());
+			}
+			Map<String, Object> envVars = new HashMap<>();
+			envVars.put(Context.REFERRAL, "follow");
+			envVars.put("com.sun.jndi.ldap.connect.timeout", Integer.toString(CONNECT_TIMEOUT));
+			envVars.put("com.sun.jndi.ldap.read.timeout", Integer.toString(READ_TIMEOUT));
+			dirContextFactory.setExtraEnvVars(envVars);
 			ldapTemplate = new LdapTemplate(dirContextFactory);
-            FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, userSearch, dirContextFactory);
-            ldapUserSearch.setSearchSubtree(true);
-            BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(dirContextFactory);
-            // this is when we need to find it.
-            bindAuthenticator.setUserSearch(ldapUserSearch);
-            ProxyLDAPAuthoritiesPopulator authoritiesPopulator = new ProxyLDAPAuthoritiesPopulator(dirContextFactory, groupSearchBase);
-            // see DefaultLdapAuthoritiesPopulator for other possible configurations
-            authoritiesPopulator.setSearchSubtree(true);
-            authoritiesPopulator.setGroupSearchFilter("(| (member={0}) (uniqueMember={0}) (memberUid={1}))");
-            ProviderManager pm = new ProviderManager();
-            List<AuthenticationProvider> providers = new ArrayList<>();
-            // talk to Reverse Proxy Authentication + Authorisation via LDAP
-            LdapAuthenticationProvider authenticationProvider = new LdapAuthenticationProvider(bindAuthenticator, authoritiesPopulator);
-            providers.add(authenticationProvider);
-            RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
-            rmap.setKey(Jenkins.getInstance().getSecretKey());
-            providers.add(rmap);
-            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
-            aap.setKey("anonymous");
-            providers.add(aap);
-            pm.setProviders(providers);
+			FilterBasedLdapUserSearch ldapUserSearch = new FilterBasedLdapUserSearch(userSearchBase, userSearch, dirContextFactory);
+			ldapUserSearch.setSearchSubtree(true);
+			BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(dirContextFactory);
+			// this is when we need to find it.
+			bindAuthenticator.setUserSearch(ldapUserSearch);
+			ProxyLDAPAuthoritiesPopulator authoritiesPopulator = new ProxyLDAPAuthoritiesPopulator(dirContextFactory, groupSearchBase);
+			// see DefaultLdapAuthoritiesPopulator for other possible configurations
+			authoritiesPopulator.setSearchSubtree(true);
+			authoritiesPopulator.setGroupSearchFilter("(| (member={0}) (uniqueMember={0}) (memberUid={1}))");
+			ProviderManager pm = new ProviderManager();
+			List<AuthenticationProvider> providers = new ArrayList<>();
+			// talk to Reverse Proxy Authentication + Authorisation via LDAP
+			LdapAuthenticationProvider authenticationProvider = new LdapAuthenticationProvider(bindAuthenticator, authoritiesPopulator);
+			providers.add(authenticationProvider);
+			RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
+			rmap.setKey(Jenkins.getInstance().getSecretKey());
+			providers.add(rmap);
+			AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
+			aap.setKey("anonymous");
+			providers.add(aap);
+			pm.setProviders(providers);
 			if (groupMembershipFilter != null || groupNameAttribute != null) {
-		        if (groupMembershipFilter != null) {
-			        authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
-		        }
-		        if (groupNameAttribute != null) {					
-		        	authoritiesPopulator.setGroupRoleAttribute(groupNameAttribute);
+				if (groupMembershipFilter != null) {
+					authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
+				}
+				if (groupNameAttribute != null) {
+					authoritiesPopulator.setGroupRoleAttribute(groupNameAttribute);
 				}
 			}
 			return new SecurityComponents(pm, new ProxyLDAPUserDetailsService(ldapUserSearch, authoritiesPopulator));
