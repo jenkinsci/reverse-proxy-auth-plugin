@@ -30,7 +30,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.util.Assert;
 
-import javax.annotation.CheckForNull;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 
 
 /**

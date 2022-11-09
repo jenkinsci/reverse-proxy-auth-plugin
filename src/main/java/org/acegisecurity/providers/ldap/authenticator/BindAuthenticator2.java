@@ -23,11 +23,11 @@
  */
 package org.acegisecurity.providers.ldap.authenticator;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
-
-import java.util.logging.Logger;
-import java.util.logging.Level;
 
 /**
  * {@link BindAuthenticator} with improved diagnostics.

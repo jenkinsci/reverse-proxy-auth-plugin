@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.acegisecurity.AcegiMessageSource;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
@@ -20,8 +19,9 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.util.Assert;
 
-import javax.annotation.CheckForNull;
-import javax.annotation.Nonnull;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 
 /**
@@ -43,7 +43,7 @@ public class DefaultReverseProxyAuthenticator implements ReverseProxyAuthenticat
 		this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
 	}
 
-	public void setMessageSource(@Nonnull MessageSource messageSource) {
+	public void setMessageSource(@NonNull MessageSource messageSource) {
 		Assert.notNull("Message source must not be null");
 		messages = new MessageSourceAccessor(messageSource);
 	}

@@ -1,14 +1,15 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.model;
 
-import javax.annotation.CheckForNull;
+import java.util.Arrays;
+
 import javax.naming.directory.Attributes;
 import javax.naming.directory.BasicAttributes;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.userdetails.UserDetails;
 
-import java.util.Arrays;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
