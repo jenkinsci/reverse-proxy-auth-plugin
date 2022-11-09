@@ -1,5 +1,7 @@
 package org.jenkinsci.plugins.reverse_proxy_auth;
 
+import java.util.concurrent.Callable;
+
 import hudson.security.SecurityRealm;
 import hudson.util.Secret;
 import jenkins.model.Jenkins;
