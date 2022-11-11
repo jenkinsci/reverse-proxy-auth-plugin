@@ -131,11 +131,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * Interval to check user authorities via LDAP.
 	 */
 	private static final int CHECK_INTERVAL = 15;
-	
+
 	/**
-	 * Scrambled password, used to first bind to LDAP.
+	 * Encrypted password, used to first bind to LDAP.
 	 */
-	private final Secret managerPassword;
+	private Secret managerPasswordSecret;
+
+	/**
+	 * Scrambled password, used to migrate from string to secret.
+	 */
+	@Deprecated
+	private transient String managerPassword;
 
 	/**
 	 * Search Template used when the groups are in the header.
@@ -226,7 +232,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
      public String groupNameAttribute;
 
 	/**
-	 * If non-null, we use this and {@link #managerPassword}
+	 * If non-null, we use this and {@link #managerPasswordSecret}
 	 * when binding to LDAP.
 	 *
 	 * This is necessary when LDAP doesn't support anonymous access.
@@ -305,7 +311,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 		this.server = fixEmptyAndTrim(server);
 		this.managerDN = fixEmpty(managerDN);
-		this.managerPassword = managerPassword;
+		this.managerPasswordSecret = managerPassword;
 		this.inhibitInferRootDN = inhibitInferRootDN;
 
 		if (this.server != null) {
@@ -386,7 +392,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String getEmailAddressLdapAttribute() {
 		return emailAddressLdapAttribute;
 	}
-	
+
+	protected Object readResolve() {
+		if (this.managerPassword != null) {
+			this.managerPasswordSecret = Secret.fromString(Scrambler.descramble(this.managerPassword));
+		}
+		return this;
+	}
+
 	/**
 	 * Infer the root DN.
 	 *
@@ -440,7 +453,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return buf.toString();
 	}
 
-	public Secret getManagerPassword() { return managerPassword; }
+	public Secret getManagerPassword() { return managerPasswordSecret; }
 
 	public int getUpdateInterval() {
 		return updateInterval;
@@ -607,7 +620,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			return new SecurityComponents(pm, new ReverseProxyUserDetailsService(authoritiesPopulator));
 		} else {
             DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
-            if (managerDN != null) {
+            if (managerDN != null && getManagerPassword() != null) {
                 dirContextFactory.setManagerDn(managerDN);
                 dirContextFactory.setManagerPassword(fixEmptyAndTrim(getManagerPassword().getPlainText()));
             }
