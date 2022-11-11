@@ -40,8 +40,7 @@ THE SOFTWARE.
       <f:textbox name="customLogOutUrl" value="${instance.customLogOutUrl}" />
     </f:entry>
 	<f:entry title="${%Server}" >
-	  <f:textbox name="server" value="${instance.server}"
-            checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=server&amp;server='+encodeURIComponent(this.value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['managerPassword'].value)"/>
+	  <f:textbox name="server" value="${instance.server}"/>
 	</f:entry>
 	<f:entry title="${%root DN}" >
       <f:textbox name="rootDN" value="${instance.rootDN}" />
@@ -66,14 +65,10 @@ THE SOFTWARE.
       <f:textbox name="ldap.groupNameAttribute" value="${instance.groupNameAttribute}" />
     </f:entry>
     <f:entry title="${%Manager DN}" >
-      <f:textbox name="managerDN" value="${instance.managerDN}" autocomplete="off"
-         checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=managerDN&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.value)+'&amp;managerPassword='+encodeURIComponent(this.form.elements['ldap.managerPassword'].value)"
-      />
+      <f:textbox name="managerDN" value="${instance.managerDN}" autocomplete="off"/>
     </f:entry>
     <f:entry title="${%Manager Password}" >
-      <f:password name="managerPassword" value="${instance.managerPassword}" autocomplete="off"
-         checkUrl="'${rootURL}/securityRealms/LDAPSecurityRealm/serverCheck?field=password&amp;server='+encodeURIComponent(this.form.elements['ldap.server'].value)+'&amp;managerDN='+encodeURIComponent(this.form.elements['ldap.managerDN'].value)+'&amp;managerPassword='+encodeURIComponent(this.value)" 
-      />
+      <f:password name="managerPassword" value="${instance.managerPassword}" autocomplete="off" />
     </f:entry>
     <f:entry title="${%Display Name LDAP attribute}">
         <f:textbox name="displayNameLdapAttribute" value="${instance.displayNameLdapAttribute}" />

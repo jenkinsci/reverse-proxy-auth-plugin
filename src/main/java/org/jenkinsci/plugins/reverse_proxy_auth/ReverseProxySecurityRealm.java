@@ -70,6 +70,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 
+import hudson.util.Secret;
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
 
@@ -130,11 +131,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	 * Interval to check user authorities via LDAP.
 	 */
 	private static final int CHECK_INTERVAL = 15;
-	
+
 	/**
-	 * Scrambled password, used to first bind to LDAP.
+	 * Encrypted password, used to first bind to LDAP.
 	 */
-	private final String managerPassword;
+	private Secret managerPasswordSecret;
+
+	/**
+	 * Scrambled password, used to migrate from string to secret.
+	 */
+	@Deprecated
+	private transient String managerPassword;
 
 	/**
 	 * Search Template used when the groups are in the header.
@@ -225,7 +232,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
      public String groupNameAttribute;
 
 	/**
-	 * If non-null, we use this and {@link #managerPassword}
+	 * If non-null, we use this and {@link #managerPasswordSecret}
 	 * when binding to LDAP.
 	 *
 	 * This is necessary when LDAP doesn't support anonymous access.
@@ -278,7 +285,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	@DataBoundConstructor
 	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
-			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, String managerPassword, 
+			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, Secret managerPassword,
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
@@ -304,7 +311,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 		this.server = fixEmptyAndTrim(server);
 		this.managerDN = fixEmpty(managerDN);
-		this.managerPassword = Scrambler.scramble(fixEmpty(managerPassword));
+		this.managerPasswordSecret = managerPassword;
 		this.inhibitInferRootDN = inhibitInferRootDN;
 
 		if (this.server != null) {
@@ -385,7 +392,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String getEmailAddressLdapAttribute() {
 		return emailAddressLdapAttribute;
 	}
-	
+
+	protected Object readResolve() {
+		if (this.managerPassword != null) {
+			this.managerPasswordSecret = Secret.fromString(Scrambler.descramble(this.managerPassword));
+		}
+		return this;
+	}
+
 	/**
 	 * Infer the root DN.
 	 *
@@ -394,9 +408,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	private String inferRootDN(String server) {
 		try {
 			Hashtable<String,String> props = new Hashtable<String,String>();
-			if(managerDN != null) {
+			if(managerDN != null && getManagerPassword() != null) {
 				props.put(Context.SECURITY_PRINCIPAL, managerDN);
-				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword());
+				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword().getPlainText());
 			}
 			props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
 			//TODO: should it pass null instead and check the result?
@@ -439,9 +453,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		return buf.toString();
 	}
 
-	public String getManagerPassword() {
-		return Scrambler.descramble(managerPassword);
-	}
+	public Secret getManagerPassword() { return managerPasswordSecret; }
 
 	public int getUpdateInterval() {
 		return updateInterval;
@@ -608,9 +620,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			return new SecurityComponents(pm, new ReverseProxyUserDetailsService(authoritiesPopulator));
 		} else {
             DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
-            if (managerDN != null) {
+            if (managerDN != null && getManagerPassword() != null) {
                 dirContextFactory.setManagerDn(managerDN);
-                dirContextFactory.setManagerPassword(getManagerPassword());
+                dirContextFactory.setManagerPassword(fixEmptyAndTrim(getManagerPassword().getPlainText()));
             }
             dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
 			ldapTemplate = new LdapTemplate(dirContextFactory);
