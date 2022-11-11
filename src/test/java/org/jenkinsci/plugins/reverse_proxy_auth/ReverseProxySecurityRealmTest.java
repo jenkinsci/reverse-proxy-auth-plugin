@@ -61,7 +61,7 @@ public class ReverseProxySecurityRealmTest {
 
     private ReverseProxySecurityRealm createBasicRealm() {
         return new ReverseProxySecurityRealm(
-                "X-Forwarded-User",   // forwardedUser
+                "X-Forwarded-User",         // forwardedUser
                 "X-Forwarded-Groups",       // headerGroups
                 "|",                        // headerGroupsDelimiter
                 "",                         // customLogInUrl
@@ -76,7 +76,7 @@ public class ReverseProxySecurityRealmTest {
                 "",                         // groupMembershipFilter
                 "",                         // groupNameAttribute
                 "",                         // managerDN
-                Secret.fromString(""), // managerPassword
+                Secret.fromString(""),      // managerPassword
                 15,                         // updateInterval
                 false,                      // disableLdapEmailResolver
                 "",                         // displayNameLdapAttribute
