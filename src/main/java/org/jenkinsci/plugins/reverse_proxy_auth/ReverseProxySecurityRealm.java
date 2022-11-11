@@ -408,7 +408,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	private String inferRootDN(String server) {
 		try {
 			Hashtable<String,String> props = new Hashtable<String,String>();
-			if(managerDN != null) {
+			if(managerDN != null && getManagerPassword() != null) {
 				props.put(Context.SECURITY_PRINCIPAL, managerDN);
 				props.put(Context.SECURITY_CREDENTIALS, getManagerPassword().getPlainText());
 			}
