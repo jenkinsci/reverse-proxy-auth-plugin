@@ -67,8 +67,8 @@ THE SOFTWARE.
     <f:entry title="${%Manager DN}" >
       <f:textbox name="managerDN" value="${instance.managerDN}" autocomplete="off"/>
     </f:entry>
-    <f:entry title="${%Manager Password}" field="managerPassword">
-      <f:password />
+    <f:entry title="${%Manager Password}" >
+      <f:password name="managerPassword" value="${instance.managerPassword}" autocomplete="off" />
     </f:entry>
     <f:entry title="${%Display Name LDAP attribute}">
         <f:textbox name="displayNameLdapAttribute" value="${instance.displayNameLdapAttribute}" />
