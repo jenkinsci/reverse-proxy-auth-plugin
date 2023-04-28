@@ -107,6 +107,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsServ
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.verb.POST;
 import org.springframework.dao.DataAccessException;
 
 /**
@@ -753,6 +754,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			return Messages.ReverseProxySecurityRealm_DisplayName();
 		}
 
+		@POST
 		public FormValidation doServerCheck(
 				@QueryParameter final String server,
 				@QueryParameter final String managerDN,
