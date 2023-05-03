@@ -15,8 +15,11 @@ import org.acegisecurity.userdetails.UserDetails;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.jvnet.hudson.test.FlagRule;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.recipes.LocalData;
@@ -30,6 +33,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class ReverseProxySecurityRealmTest {
     @Rule
     public final JenkinsRule jenkinsRule = new JenkinsRule();
+
+    @ClassRule
+    public static TestRule noSpaceInTmpDirs = FlagRule.systemProperty("jenkins.test.noSpaceInTmpDirs", "true");
 
     private Jenkins jenkins;
 
