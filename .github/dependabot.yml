@@ -4,6 +4,8 @@ updates:
   directory: "/"
   schedule:
     interval: weekly
+    ignore:
+      - dependency-name: "jenkins-core"
   open-pull-requests-limit: 10
   target-branch: master
   reviewers:
