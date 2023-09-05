@@ -44,6 +44,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
@@ -532,16 +533,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						}
 
 					} else {
-						String groups = r.getHeader(headerGroups);
+						Enumeration<String> groups = r.getHeaders(headerGroups);
 
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
 						localAuthorities.add(AUTHENTICATED_AUTHORITY);
 
 						if (groups != null) {
-							StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
-							while (tokenizer.hasMoreTokens()) {
-								final String token = tokenizer.nextToken().trim();
-								localAuthorities.add(new GrantedAuthorityImpl(token));
+							while (groups.hasMoreElements()) {
+								String group = groups.nextElement();
+								localAuthorities.add(new GrantedAuthorityImpl(group));
 							}
 						}
 
