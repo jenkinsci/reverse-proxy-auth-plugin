@@ -7,8 +7,10 @@ When it comes to authorisation, the offers two options to developers: HTTP heade
 ## The default values for the HTTP header fields are:
 
 1. Header User Name: X-Forwarded-User
-2. Header Groups Name: X-Forwarded-Groups
-3. Header Groups Delimiter: |
+2. Header User Mail: X-Forwarded-Mail
+3. Header User Display Name: X-Forwarded-DisplayName
+4. Header Groups Name: X-Forwarded-Groups
+5. Header Groups Delimiter: |
  
 The LDAP options can be displayed via the Advanced... button, located on the right side of the security settings.
 
@@ -73,6 +75,8 @@ The default values for the HTTP header fields are:
         # Remove these header before to set the right value after, it prevent the client from setting this header
         RequestHeader unset "X-Forwarded-User"
         RequestHeader unset "X-Forwarded-Groups"
+        RequestHeader unset "X-Forwarded-Mail"
+        RequestHeader unset "X-Forwarded-DisplayName"
         # Remove the basic authorization header to avoid to use it in Jenkins
         RequestHeader unset "Authorization"
 
@@ -84,6 +88,9 @@ The default values for the HTTP header fields are:
         RequestHeader set "X-Forwarded-User" "%{RU}e"
         # Groups are separated by |
         RequestHeader set "X-Forwarded-Groups" "%{RU}e|users"
+        # Inject mail & display name
+        RequestHeader set "X-Forwarded-Mail" %{AUTHENTICATE_MAIL}e
+        RequestHeader set "X-Forwarded-DisplayName" %{AUTHENTICATE_DISPLAYNAME}e
 
         # strip the REALM of Kerberos Login
         # RequestHeader edit X-Forwarded-User "@REALM$" ""

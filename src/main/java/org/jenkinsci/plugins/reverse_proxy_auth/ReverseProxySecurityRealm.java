@@ -30,6 +30,7 @@ import static hudson.Util.fixNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.Descriptor;
+import hudson.model.UserPropertyDescriptor;
 import hudson.model.User;
 import hudson.security.*;
 import hudson.tasks.Mailer;
@@ -98,6 +99,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthenti
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthenticationProvider;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulatorImpl;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.ForwardedUserData;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
@@ -263,6 +265,16 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public String retrievedUser;
 
 	/**
+	 * The name of the header which the email has to be extracted from.
+	 */
+	public final String forwardedEmail;
+
+	/**
+	 * The name of the header which the display name has to be extracted from.
+	 */
+	public final String forwardedDisplayName;
+
+	/**
 	 * Header name of the groups field.
 	 */
 	public final String headerGroups;
@@ -285,11 +297,13 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	public final String customLogOutUrl;
 
 	@DataBoundConstructor
-	public ReverseProxySecurityRealm(String forwardedUser, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
+	public ReverseProxySecurityRealm(String forwardedUser, String forwardedEmail, String forwardedDisplayName, String headerGroups, String headerGroupsDelimiter, String customLogInUrl, String customLogOutUrl, String server, String rootDN, boolean inhibitInferRootDN,
 			String userSearchBase, String userSearch, String groupSearchBase, String groupSearchFilter, String groupMembershipFilter, String groupNameAttribute, String managerDN, Secret managerPassword,
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+		this.forwardedEmail = forwardedEmail;
+		this.forwardedDisplayName = forwardedDisplayName;
 
 		this.headerGroups = headerGroups;
 		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
@@ -532,6 +546,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						}
 
 					} else {
+						//Without LDAP, retrieve user data from the headers 
+						ForwardedUserData forwardedData=retrieveForwardedData(r);
+						User user=User.get(userFromHeader);
+						if(user!=null){
+							forwardedData.update(user);
+						}
 						String groups = r.getHeader(headerGroups);
 
 						List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
@@ -577,6 +597,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 		};
 		Filter defaultFilter = super.createFilter(filterConfig);
 		return new ChainedServletFilter(defaultFilter, filter);
+	}
+
+	private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
+		ForwardedUserData toReturn=new ForwardedUserData();
+		if(forwardedEmail!=null){
+				toReturn.setEmail(r.getHeader(forwardedEmail));
+		}
+		if(forwardedDisplayName!=null){
+				toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
+		}
+		return toReturn;
 	}
 
 	@Override
