@@ -5,5 +5,5 @@ import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 
 public interface ReverseProxyAuthoritiesPopulator {
 
-	GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails);
+  GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails);
 }
