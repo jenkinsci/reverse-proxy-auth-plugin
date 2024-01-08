@@ -32,9 +32,9 @@ public class ForwardedUserData {
 	 * @return true if updated and saved
 	 * **/
 	public boolean update(User user) {
-		boolean toReturn=false;
+		boolean toReturn = false;
 		if(updateDisplayName(user) || updateEmail(user)){
-			toReturn=true;
+			toReturn = true;
 			try {
 				user.save();
 			} catch (IOException e) {
@@ -49,7 +49,7 @@ public class ForwardedUserData {
 		boolean toReturn = false;
 		if(isNotNullHeader(displayName) && !displayName.equals(user.getFullName())){
 			user.setFullName(displayName);
-			toReturn=true;
+			toReturn = true;
 		}
 		return toReturn;
 	}
@@ -59,7 +59,7 @@ public class ForwardedUserData {
 		if(isNotNullHeader(email)){
 			Mailer.UserProperty emailProp = user.getProperty(Mailer.UserProperty.class);
 			if (emailProp == null || !email.equals(emailProp.getConfiguredAddress())) { 
-				emailProp=new Mailer.UserProperty(email);
+				emailProp = new Mailer.UserProperty(email);
 				try {
 					user.addProperty(emailProp);
 				} catch (IOException e) {
@@ -72,7 +72,7 @@ public class ForwardedUserData {
 	}
 
 	private static boolean isNotNullHeader(String value){
-		return value!=null && !value.equals(NULL_HEADER);
+		return value != null && !value.equals(NULL_HEADER);
 	}
 
 }

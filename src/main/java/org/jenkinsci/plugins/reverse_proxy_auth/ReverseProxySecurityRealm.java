@@ -547,8 +547,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 					} else {
 						//Without LDAP, retrieve user data from the headers 
-						ForwardedUserData forwardedData=retrieveForwardedData(r);
-						User user=User.get(userFromHeader);
+						ForwardedUserData forwardedData = retrieveForwardedData(r);
+						User user = User.get(userFromHeader);
 						if (user != null) {
 							forwardedData.update(user);
 						}
@@ -600,7 +600,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 	}
 
 	private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
-		ForwardedUserData toReturn=new ForwardedUserData();
+		ForwardedUserData toReturn = new ForwardedUserData();
 		if (forwardedEmail != null) {
 				toReturn.setEmail(r.getHeader(forwardedEmail));
 		}
