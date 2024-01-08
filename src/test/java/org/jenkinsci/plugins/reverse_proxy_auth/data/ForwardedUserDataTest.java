@@ -14,7 +14,7 @@ public class ForwardedUserDataTest {
     @Before
     public void setup() {
         forwardedUserData = new ForwardedUserData();
-        user = new User();
+        user = User.get("Max Mustermann", true);
     }
 
     @Test
