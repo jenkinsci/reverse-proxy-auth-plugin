@@ -302,8 +302,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 			Integer updateInterval, boolean disableLdapEmailResolver, String displayNameLdapAttribute, String emailAddressLdapAttribute) {
 
 		this.forwardedUser = fixEmptyAndTrim(forwardedUser);
-		this.forwardedEmail = forwardedEmail;
-		this.forwardedDisplayName = forwardedDisplayName;
+		this.forwardedEmail = fixEmptyAndTrim(forwardedEmail);
+		this.forwardedDisplayName = fixEmptyAndTrim(forwardedDisplayName);
 
 		this.headerGroups = headerGroups;
 		if (!StringUtils.isBlank(headerGroupsDelimiter)) {
@@ -549,7 +549,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 						//Without LDAP, retrieve user data from the headers 
 						ForwardedUserData forwardedData=retrieveForwardedData(r);
 						User user=User.get(userFromHeader);
-						if(user!=null){
+						if (user != null) {
 							forwardedData.update(user);
 						}
 						String groups = r.getHeader(headerGroups);
@@ -601,10 +601,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
 	private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
 		ForwardedUserData toReturn=new ForwardedUserData();
-		if(forwardedEmail!=null){
+		if (forwardedEmail != null) {
 				toReturn.setEmail(r.getHeader(forwardedEmail));
 		}
-		if(forwardedDisplayName!=null){
+		if (forwardedDisplayName != null) {
 				toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
 		}
 		return toReturn;
