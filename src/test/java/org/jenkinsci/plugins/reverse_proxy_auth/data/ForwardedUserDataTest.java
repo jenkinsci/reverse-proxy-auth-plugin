@@ -1,5 +1,6 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.data;
 
+import java.util.Collections;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
