@@ -32,7 +32,7 @@ THE SOFTWARE.
   <f:entry title="${%Header Groups Delimiter Name}">
     <f:textbox field="headerGroupsDelimiter" default="|" />
   </f:entry>
-  <f:advanced>  
+  <f:advanced>
     <f:entry title="${%Custom Log In URL}" >
       <f:textbox name="customLogInUrl" value="${instance.customLogInUrl}" />
     </f:entry>
@@ -83,7 +83,7 @@ THE SOFTWARE.
       <f:textbox name="updateInterval" value="${instance.updateInterval}" default="15"/>
     </f:entry>
   </f:advanced>
-  
+
   <j:set var="uras" value="${app.unprotectedRootActions}"/>
   <j:if test="${uras != null}"> <!-- 1.495+ -->
     <f:entry title="${%Unprotected URLs}">

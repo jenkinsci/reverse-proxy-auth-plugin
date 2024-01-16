@@ -18,87 +18,88 @@ import org.springframework.dao.DataAccessException;
 
 public class ProxyLDAPUserDetailsService implements UserDetailsService {
 
-  private static final Logger LOGGER =
-      Logger.getLogger(ProxyLDAPUserDetailsService.class.getName());
-  private static final int RETRY_TIMES = 3;
-  private static final long MAX_WAIT_INTERVAL = 5000L; // 5 seconds
+    private static final Logger LOGGER = Logger.getLogger(ProxyLDAPUserDetailsService.class.getName());
+    private static final int RETRY_TIMES = 3;
+    private static final long MAX_WAIT_INTERVAL = 5000L; // 5 seconds
 
-  public final LdapUserSearch ldapSearch;
-  public final LdapAuthoritiesPopulator authoritiesPopulator;
+    public final LdapUserSearch ldapSearch;
+    public final LdapAuthoritiesPopulator authoritiesPopulator;
 
-  /**
-   * {@link BasicAttributes} in LDAP tend to be bulky (about 20K at size), so interning them to keep
-   * the size under control. When a programmatic client is not smart enough to reuse a session, this
-   * helps keeping the memory consumption low.
-   */
-  private final LRUMap attributesCache = new LRUMap(32);
+    /**
+     * {@link BasicAttributes} in LDAP tend to be bulky (about 20K at size), so interning them to keep
+     * the size under control. When a programmatic client is not smart enough to reuse a session, this
+     * helps keeping the memory consumption low.
+     */
+    private final LRUMap attributesCache = new LRUMap(32);
 
-  public ProxyLDAPUserDetailsService(
-      LdapUserSearch ldapSearch, LdapAuthoritiesPopulator authoritiesPopulator) {
-    this.ldapSearch = ldapSearch;
-    this.authoritiesPopulator = authoritiesPopulator;
-  }
-
-  public LdapUserDetails loadUserByUsername(String username)
-      throws UsernameNotFoundException, DataAccessException {
-    int retries = 0;
-    while (retries < RETRY_TIMES) {
-      try {
-        LdapUserDetails ldapUser = ldapSearch.searchForUser(username);
-        // LdapUserSearch does not populate granted authorities (group search).
-        // Add those, as done in LdapAuthenticationProvider.createUserDetails().
-        if (ldapUser != null) {
-          LdapUserDetailsImpl.Essence user = new LdapUserDetailsImpl.Essence(ldapUser);
-
-          // intern attributes
-          Attributes v = ldapUser.getAttributes();
-          if (v
-              instanceof
-              BasicAttributes) { // BasicAttributes.equals is what makes the interning possible
-            synchronized (attributesCache) {
-              Attributes vv = (Attributes) attributesCache.get(v);
-              if (vv == null) attributesCache.put(v, vv = v);
-              user.setAttributes(vv);
-            }
-          }
-
-          GrantedAuthority[] extraAuthorities =
-              authoritiesPopulator.getGrantedAuthorities(ldapUser);
-          for (GrantedAuthority extraAuthority : extraAuthorities) {
-            user.addAuthority(extraAuthority);
-          }
-          ldapUser = user.createUserDetails();
-        }
-
-        return ldapUser;
-      } catch (LdapDataAccessException ldapEx) {
-        long waitTime = Math.min(getWaitTimeExp(retries), MAX_WAIT_INTERVAL);
-        String msg =
-            String.format(
-                "Failed to search LDAP for username %s, will retry after waiting for %d"
-                    + " milliseconds",
-                username, waitTime);
-        LOGGER.log(Level.WARNING, msg, ldapEx);
-        try {
-          Thread.sleep(waitTime);
-        } catch (InterruptedException intEx) {
-          LOGGER.log(Level.WARNING, "Thread was interrupted while sleeping!");
-        }
-        retries++;
-      }
+    public ProxyLDAPUserDetailsService(LdapUserSearch ldapSearch, LdapAuthoritiesPopulator authoritiesPopulator) {
+        this.ldapSearch = ldapSearch;
+        this.authoritiesPopulator = authoritiesPopulator;
     }
-    throw new UserMayOrMayNotExistException(
-        "Failed to search LDAP for user after all the retries.");
-  }
 
-  /*
-   * Returns the next wait interval, in milliseconds, using an exponential
-   * backoff algorithm.
-   */
-  private long getWaitTimeExp(int retryCount) {
+    /**
+     * Loads the user by username
+     *
+     * @param username the username
+     * @return user
+     * @throws UsernameNotFoundException if user not found
+     * @throws DataAccessException on data access exception
+     */
+    public LdapUserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
+        int retries = 0;
+        while (retries < RETRY_TIMES) {
+            try {
+                LdapUserDetails ldapUser = ldapSearch.searchForUser(username);
+                // LdapUserSearch does not populate granted authorities (group search).
+                // Add those, as done in LdapAuthenticationProvider.createUserDetails().
+                if (ldapUser != null) {
+                    LdapUserDetailsImpl.Essence user = new LdapUserDetailsImpl.Essence(ldapUser);
 
-    long waitTime = ((long) Math.pow(2, retryCount) * 1000L);
+                    // intern attributes
+                    Attributes v = ldapUser.getAttributes();
+                    if (v instanceof BasicAttributes) { // BasicAttributes.equals is what makes the interning possible
+                        synchronized (attributesCache) {
+                            Attributes vv = (Attributes) attributesCache.get(v);
+                            if (vv == null) {
+                                attributesCache.put(v, vv = v);
+                            }
+                            user.setAttributes(vv);
+                        }
+                    }
 
-    return waitTime;
-  }
+                    GrantedAuthority[] extraAuthorities = authoritiesPopulator.getGrantedAuthorities(ldapUser);
+                    for (GrantedAuthority extraAuthority : extraAuthorities) {
+                        user.addAuthority(extraAuthority);
+                    }
+                    ldapUser = user.createUserDetails();
+                }
+
+                return ldapUser;
+            } catch (LdapDataAccessException ldapEx) {
+                long waitTime = Math.min(getWaitTimeExp(retries), MAX_WAIT_INTERVAL);
+                String msg = String.format(
+                        "Failed to search LDAP for username %s, will retry after waiting for %d" + " milliseconds",
+                        username, waitTime);
+                LOGGER.log(Level.WARNING, msg, ldapEx);
+                try {
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException intEx) {
+                    LOGGER.log(Level.WARNING, "Thread was interrupted while sleeping!");
+                }
+                retries++;
+            }
+        }
+        throw new UserMayOrMayNotExistException("Failed to search LDAP for user after all the retries.");
+    }
+
+    /*
+     * Returns the next wait interval, in milliseconds, using an exponential
+     * backoff algorithm.
+     */
+    private long getWaitTimeExp(int retryCount) {
+
+        long waitTime = ((long) Math.pow(2, retryCount) * 1000L);
+
+        return waitTime;
+    }
 }

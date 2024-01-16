@@ -8,12 +8,12 @@ import org.acegisecurity.GrantedAuthority;
  */
 public class UserSearchTemplate extends SearchTemplate {
 
-  public UserSearchTemplate(String userOrGroup) {
-    super(userOrGroup);
-  }
+    public UserSearchTemplate(String userOrGroup) {
+        super(userOrGroup);
+    }
 
-  @Override
-  public Set<String> processAuthorities(GrantedAuthority[] authorities) {
-    return doProcess(authorities);
-  }
+    @Override
+    public Set<String> processAuthorities(GrantedAuthority[] authorities) {
+        return doProcess(authorities);
+    }
 }

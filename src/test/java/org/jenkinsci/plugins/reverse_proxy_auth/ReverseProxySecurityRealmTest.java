@@ -27,86 +27,84 @@ import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.recipes.LocalData;
 
 public class ReverseProxySecurityRealmTest {
-  @Rule public final JenkinsRule jenkinsRule = new JenkinsRule();
+    @Rule
+    public final JenkinsRule jenkinsRule = new JenkinsRule();
 
-  private Jenkins jenkins;
+    private Jenkins jenkins;
 
-  @Before
-  public void setUp() {
-    jenkins = jenkinsRule.jenkins;
-  }
+    @Before
+    public void setUp() {
+        jenkins = jenkinsRule.jenkins;
+    }
 
-  @Test
-  public void basicGetUserDetails() {
-    final ReverseProxySecurityRealm realm = createBasicRealm();
-    final UserDetails userDetails = realm.loadUserByUsername("test@example.com");
-    Assert.assertEquals("test@example.com", userDetails.getUsername());
-  }
+    @Test
+    public void basicGetUserDetails() {
+        final ReverseProxySecurityRealm realm = createBasicRealm();
+        final UserDetails userDetails = realm.loadUserByUsername("test@example.com");
+        Assert.assertEquals("test@example.com", userDetails.getUsername());
+    }
 
-  @Test
-  @Issue("JENKINS-49274")
-  public void basicAuthenticate() throws Exception {
-    final ReverseProxySecurityRealm realm = createBasicRealm();
-    jenkins.setSecurityRealm(realm);
+    @Test
+    @Issue("JENKINS-49274")
+    public void basicAuthenticate() throws Exception {
+        final ReverseProxySecurityRealm realm = createBasicRealm();
+        jenkins.setSecurityRealm(realm);
 
-    final JenkinsRule.WebClient client = jenkinsRule.createWebClient();
-    client.addRequestHeader(realm.getForwardedUser(), "test@example.com");
-    final Authentication authentication =
-        client.executeOnServer(
-            new Callable<Authentication>() {
-              @Override
-              public Authentication call() {
+        final JenkinsRule.WebClient client = jenkinsRule.createWebClient();
+        client.addRequestHeader(realm.getForwardedUser(), "test@example.com");
+        final Authentication authentication = client.executeOnServer(new Callable<Authentication>() {
+            @Override
+            public Authentication call() {
                 return Jenkins.getAuthentication();
-              }
-            });
-    Assert.assertEquals(
-        "Authentication should match",
-        new UsernamePasswordAuthenticationToken(
-            "test@example.com", "", new GrantedAuthority[] {SecurityRealm.AUTHENTICATED_AUTHORITY}),
-        authentication);
-  }
+            }
+        });
+        Assert.assertEquals(
+                "Authentication should match",
+                new UsernamePasswordAuthenticationToken(
+                        "test@example.com", "", new GrantedAuthority[] {SecurityRealm.AUTHENTICATED_AUTHORITY}),
+                authentication);
+    }
 
-  private ReverseProxySecurityRealm createBasicRealm() {
-    return new ReverseProxySecurityRealm(
-        "X-Forwarded-User", // forwardedUser
-        "X-Forwarded-Groups", // headerGroups
-        "|", // headerGroupsDelimiter
-        "", // customLogInUrl
-        "", // customLogOutUrl
-        "", // server
-        "", // rootDN
-        false, // inhibitInferRootDN
-        "", // userSearchBase
-        "", // userSearch
-        "", // groupSearchBase
-        "", // groupSearchFilter
-        "", // groupMembershipFilter
-        "", // groupNameAttribute
-        "", // managerDN
-        Secret.fromString(""), // managerPassword
-        15, // updateInterval
-        false, // disableLdapEmailResolver
-        "", // displayNameLdapAttribute
-        "" // emailAddressLdapAttribute
-        );
-  }
+    private ReverseProxySecurityRealm createBasicRealm() {
+        return new ReverseProxySecurityRealm(
+                "X-Forwarded-User", // forwardedUser
+                "X-Forwarded-Groups", // headerGroups
+                "|", // headerGroupsDelimiter
+                "", // customLogInUrl
+                "", // customLogOutUrl
+                "", // server
+                "", // rootDN
+                false, // inhibitInferRootDN
+                "", // userSearchBase
+                "", // userSearch
+                "", // groupSearchBase
+                "", // groupSearchFilter
+                "", // groupMembershipFilter
+                "", // groupNameAttribute
+                "", // managerDN
+                Secret.fromString(""), // managerPassword
+                15, // updateInterval
+                false, // disableLdapEmailResolver
+                "", // displayNameLdapAttribute
+                "" // emailAddressLdapAttribute
+                );
+    }
 
-  @Test
-  @LocalData
-  public void testPasswordMigration() throws IOException {
-    final SecurityRealm securityRealm = jenkinsRule.jenkins.getSecurityRealm();
-    assertThat(securityRealm, instanceOf(ReverseProxySecurityRealm.class));
-    ReverseProxySecurityRealm reverseProxySecurityRealm = (ReverseProxySecurityRealm) securityRealm;
-    assertThat(
-        reverseProxySecurityRealm.getManagerPassword().getPlainText(), is("theManagerPassw0rd"));
+    @Test
+    @LocalData
+    public void testPasswordMigration() throws IOException {
+        final SecurityRealm securityRealm = jenkinsRule.jenkins.getSecurityRealm();
+        assertThat(securityRealm, instanceOf(ReverseProxySecurityRealm.class));
+        ReverseProxySecurityRealm reverseProxySecurityRealm = (ReverseProxySecurityRealm) securityRealm;
+        assertThat(reverseProxySecurityRealm.getManagerPassword().getPlainText(), is("theManagerPassw0rd"));
 
-    // Ensure migration is complete after saving (don't rely on save-on-startup as in some Jenkins
-    // releases)
-    Jenkins.get().save();
-    final String configXml =
-        IOUtils.toString(new FileReader(new File(Jenkins.get().getRootDir(), "config.xml")));
-    assertThat(configXml, containsString("<managerPasswordSecret"));
-    assertThat(configXml, not(containsString("<managerPassword ")));
-    assertThat(configXml, not(containsString("<managerPassword>")));
-  }
+        // Ensure migration is complete after saving (don't rely on save-on-startup as in some Jenkins
+        // releases)
+        Jenkins.get().save();
+        final String configXml =
+                IOUtils.toString(new FileReader(new File(Jenkins.get().getRootDir(), "config.xml")));
+        assertThat(configXml, containsString("<managerPasswordSecret"));
+        assertThat(configXml, not(containsString("<managerPassword ")));
+        assertThat(configXml, not(containsString("<managerPassword>")));
+    }
 }

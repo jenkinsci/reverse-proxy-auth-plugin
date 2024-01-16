@@ -9,21 +9,21 @@ import org.acegisecurity.GrantedAuthority;
  */
 public class GroupSearchTemplate extends SearchTemplate {
 
-  public GroupSearchTemplate(String userOrGroup) {
-    super(userOrGroup);
-  }
+    public GroupSearchTemplate(String userOrGroup) {
+        super(userOrGroup);
+    }
 
-  @Override
-  public Set<String> processAuthorities(GrantedAuthority[] authorities) {
-    return this.doProcess(authorities);
-  }
+    @Override
+    public Set<String> processAuthorities(GrantedAuthority[] authorities) {
+        return this.doProcess(authorities);
+    }
 
-  @Override
-  protected Set<String> doProcess(GrantedAuthority[] authorities) {
-    // TODO: refactoring: use singleton
-    Set<String> authorityValues = new HashSet<String>();
-    authorityValues.add(userOrGroup);
+    @Override
+    protected Set<String> doProcess(GrantedAuthority[] authorities) {
+        // TODO: refactoring: use singleton
+        Set<String> authorityValues = new HashSet<String>();
+        authorityValues.add(userOrGroup);
 
-    return authorityValues;
-  }
+        return authorityValues;
+    }
 }

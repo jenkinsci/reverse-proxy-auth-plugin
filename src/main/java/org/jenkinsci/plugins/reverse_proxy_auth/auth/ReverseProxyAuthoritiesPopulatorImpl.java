@@ -28,61 +28,59 @@ import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 /**
  * @author Wilder rodrigues (wrodrigues@schuberphilis.com)
  */
-public final class ReverseProxyAuthoritiesPopulatorImpl
-    extends DefaultReverseProxyAuthoritiesPopulator {
+public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReverseProxyAuthoritiesPopulator {
 
-  String rolePrefix = "ROLE_";
-  boolean convertToUpperCase = true;
+    String rolePrefix = "ROLE_";
+    boolean convertToUpperCase = true;
 
-  public ReverseProxyAuthoritiesPopulatorImpl(
-      @CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
-    super(authContext);
+    public ReverseProxyAuthoritiesPopulatorImpl(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
+        super(authContext);
 
-    super.setRolePrefix("");
-    super.setConvertToUpperCase(false);
-  }
-
-  @Override
-  protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
-    return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY);
-  }
-
-  @Override
-  public void setRolePrefix(String rolePrefix) {
-    this.rolePrefix = rolePrefix;
-  }
-
-  @Override
-  public void setConvertToUpperCase(boolean convertToUpperCase) {
-    this.convertToUpperCase = convertToUpperCase;
-  }
-
-  /**
-   * Retrieves the group membership in two ways.
-   *
-   * <p>We'd like to retain the original name, but we historically used to do "ROLE_GROUPNAME". So
-   * to remain backward compatible, we make the super class pass the unmodified "groupName", then do
-   * the backward compatible translation here, so that the user gets both "ROLE_GROUPNAME" and
-   * "groupName".
-   */
-  @Override
-  public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
-
-    Set<GrantedAuthority> names = super.getGroupMembershipRoles(username);
-
-    Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
-    groupRoles.addAll(names);
-
-    for (GrantedAuthority ga : names) {
-      String role = ga.getAuthority();
-
-      // backward compatible name mangling
-      if (convertToUpperCase) {
-        role = role.toUpperCase();
-      }
-      groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
+        super.setRolePrefix("");
+        super.setConvertToUpperCase(false);
     }
 
-    return groupRoles;
-  }
+    @Override
+    protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
+        return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY);
+    }
+
+    @Override
+    public void setRolePrefix(String rolePrefix) {
+        this.rolePrefix = rolePrefix;
+    }
+
+    @Override
+    public void setConvertToUpperCase(boolean convertToUpperCase) {
+        this.convertToUpperCase = convertToUpperCase;
+    }
+
+    /**
+     * Retrieves the group membership in two ways.
+     *
+     * <p>We'd like to retain the original name, but we historically used to do "ROLE_GROUPNAME". So
+     * to remain backward compatible, we make the super class pass the unmodified "groupName", then do
+     * the backward compatible translation here, so that the user gets both "ROLE_GROUPNAME" and
+     * "groupName".
+     */
+    @Override
+    public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
+
+        Set<GrantedAuthority> names = super.getGroupMembershipRoles(username);
+
+        Set<GrantedAuthority> groupRoles = new HashSet<GrantedAuthority>(names.size() * 2);
+        groupRoles.addAll(names);
+
+        for (GrantedAuthority ga : names) {
+            String role = ga.getAuthority();
+
+            // backward compatible name mangling
+            if (convertToUpperCase) {
+                role = role.toUpperCase();
+            }
+            groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
+        }
+
+        return groupRoles;
+    }
 }

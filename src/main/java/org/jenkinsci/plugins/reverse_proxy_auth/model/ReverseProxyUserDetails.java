@@ -13,55 +13,56 @@ import org.acegisecurity.userdetails.UserDetails;
  */
 public class ReverseProxyUserDetails implements UserDetails {
 
-  private static final long serialVersionUID = 8070729070782792157L;
+    private static final long serialVersionUID = 8070729070782792157L;
 
-  private static final Attributes attributes = new BasicAttributes();
+    private static final Attributes attributes = new BasicAttributes();
 
-  @CheckForNull private GrantedAuthority[] authorities;
-  @CheckForNull private String username;
+    @CheckForNull
+    private GrantedAuthority[] authorities;
 
-  @CheckForNull
-  @SuppressFBWarnings(
-      value = "EI_EXPOSE_REP",
-      justification = "We keep it as is due to performance reasons")
-  public GrantedAuthority[] getAuthorities() {
-    return authorities;
-  }
+    @CheckForNull
+    private String username;
 
-  public void setAuthorities(@CheckForNull GrantedAuthority[] authorities) {
-    this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
-  }
+    @CheckForNull
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "We keep it as is due to performance reasons")
+    public GrantedAuthority[] getAuthorities() {
+        return authorities;
+    }
 
-  public String getPassword() {
-    return "";
-  }
+    public void setAuthorities(@CheckForNull GrantedAuthority[] authorities) {
+        this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
+    }
 
-  @CheckForNull
-  public String getUsername() {
-    return username;
-  }
+    public String getPassword() {
+        return "";
+    }
 
-  public void setUsername(String username) {
-    this.username = username;
-  }
+    @CheckForNull
+    public String getUsername() {
+        return username;
+    }
 
-  public boolean isAccountNonExpired() {
-    return true;
-  }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-  public boolean isAccountNonLocked() {
-    return true;
-  }
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
-  public boolean isCredentialsNonExpired() {
-    return true;
-  }
+    public boolean isAccountNonLocked() {
+        return true;
+    }
 
-  public boolean isEnabled() {
-    return true;
-  }
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
 
-  public Attributes getAttributes() {
-    return attributes;
-  }
+    public boolean isEnabled() {
+        return true;
+    }
+
+    public Attributes getAttributes() {
+        return attributes;
+    }
 }

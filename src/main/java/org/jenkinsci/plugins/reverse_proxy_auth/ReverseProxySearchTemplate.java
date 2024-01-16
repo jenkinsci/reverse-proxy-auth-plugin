@@ -10,23 +10,23 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
  */
 public class ReverseProxySearchTemplate {
 
-  public Set<String> executeReadOnly(ContextExecutor ce) {
-    return ce.executeWithContext();
-  }
-
-  public Set<String> searchForSingleAttributeValues(
-      final SearchTemplate template, final @CheckForNull GrantedAuthority[] authorities) {
-
-    class SingleAttributeSearchCallback implements ContextExecutor {
-
-      public Set<String> executeWithContext() {
-        return template.processAuthorities(authorities);
-      }
+    public Set<String> executeReadOnly(ContextExecutor ce) {
+        return ce.executeWithContext();
     }
-    return executeReadOnly(new SingleAttributeSearchCallback());
-  }
+
+    public Set<String> searchForSingleAttributeValues(
+            final SearchTemplate template, final @CheckForNull GrantedAuthority[] authorities) {
+
+        class SingleAttributeSearchCallback implements ContextExecutor {
+
+            public Set<String> executeWithContext() {
+                return template.processAuthorities(authorities);
+            }
+        }
+        return executeReadOnly(new SingleAttributeSearchCallback());
+    }
 }
 
 interface ContextExecutor {
-  Set<String> executeWithContext();
+    Set<String> executeWithContext();
 }
