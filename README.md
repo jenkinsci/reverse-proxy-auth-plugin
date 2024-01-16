@@ -9,7 +9,7 @@ When it comes to authorisation, the offers two options to developers: HTTP heade
 1. Header User Name: X-Forwarded-User
 2. Header Groups Name: X-Forwarded-Groups
 3. Header Groups Delimiter: |
- 
+
 The LDAP options can be displayed via the Advanced... button, located on the right side of the security settings.
 
 If no LDAP information is given, the default used will be the HEADER fields. However, if both are configured, the LDAP has priority over the HTTP header.
@@ -18,7 +18,7 @@ If the username is not forwarded to Jenkins, the user will be authenticated as A
 
 However, once the LDAP is properly configured instead of groups on the HTTP header, there is guarantee that only the groups of a given user will be returned. There is no possibility to get groups injected via the header.
 
-See the fields in [ReverseProxySecurityRealm.java](https://github.com/jenkinsci/reverse-proxy-auth-plugin/blob/master/src/main/java/org/jenkinsci/plugins/reverse_proxy_auth/ReverseProxySecurityRealm.java) for details about the available options. 
+See the fields in [ReverseProxySecurityRealm.java](https://github.com/jenkinsci/reverse-proxy-auth-plugin/blob/master/src/main/java/org/jenkinsci/plugins/reverse_proxy_auth/ReverseProxySecurityRealm.java) for details about the available options.
 
 ## Alternative authentication: API Token
 An other possibility to authenticate is to the use an HTTP Basic authentication with the Jenkins API Token.
@@ -59,7 +59,7 @@ The default values for the HTTP header fields are:
       ProxyRequests     Off
       AllowEncodedSlashes NoDecode
       Timeout 5400
-      ProxyTimeout 5400     
+      ProxyTimeout 5400
 
       <Proxy "*">
         Order deny,allow
@@ -68,7 +68,7 @@ The default values for the HTTP header fields are:
         AuthName "Please sign in with your Apache user name and password"
         # file created with htpasswd
         AuthUserFile /usr/local/apache2/conf/passwd
-        Require valid-user      
+        Require valid-user
 
         # Remove these header before to set the right value after, it prevent the client from setting this header
         RequestHeader unset "X-Forwarded-User"
@@ -78,7 +78,7 @@ The default values for the HTTP header fields are:
 
         # Adds the X-Forwarded-User header that indicates the current user name.
         # this portion came from http://old.nabble.com/Forcing-a-proxied-host-to-generate-REMOTE_USER-td2911573.html#a2914465
-        RewriteEngine On        
+        RewriteEngine On
 
         # User to use to login in Jenkins
         RequestHeader set "X-Forwarded-User" "%{RU}e"
@@ -270,7 +270,7 @@ Compatibility with [JEP-227](https://jenkins.io/jep/227). Should be no functiona
 ### Version 1.6.0 (2018 January 29)
 
 -   ![(error)](https://wiki.jenkins.io/s/en_GB/8100/5084f018d64a97dc638ca9a178856f851ea353ff/_/images/icons/emoticons/error.svg) [JENKINS-22402](https://issues.jenkins-ci.org/browse/JENKINS-22402)/[JENKINS-48970](https://issues.jenkins-ci.org/browse/JENKINS-48970) -
-    Stop storing authentication context and caches on the disk  
+    Stop storing authentication context and caches on the disk
     -   The change also fixes compatibility with JEP-200 in Jenkins
         2.102+
     -   More info: [Plugins affected by fix for
@@ -288,15 +288,15 @@ Compatibility with [JEP-227](https://jenkins.io/jep/227). Should be no functiona
 
 -   [![(plus)](https://wiki.jenkins.io/s/en_GB/8100/5084f018d64a97dc638ca9a178856f851ea353ff/_/images/icons/emoticons/add.svg) PR
     \#25](https://github.com/jenkinsci/reverse-proxy-auth-plugin/pull/25) -
-    Add support of custom log output redirect  
+    Add support of custom log output redirect
 
 -   [![(plus)](https://wiki.jenkins.io/s/en_GB/8100/5084f018d64a97dc638ca9a178856f851ea353ff/_/images/icons/emoticons/add.svg) PR
     \#26](https://github.com/jenkinsci/reverse-proxy-auth-plugin/pull/26) -
-    Add support of custom login URL  
+    Add support of custom login URL
 
 -   [![(info)](https://wiki.jenkins.io/s/en_GB/8100/5084f018d64a97dc638ca9a178856f851ea353ff/_/images/icons/emoticons/information.svg) PR
     \#33](https://github.com/jenkinsci/reverse-proxy-auth-plugin/pull/33) -
-    Plugin now requires Jenkins core 1.625.3 or above  
+    Plugin now requires Jenkins core 1.625.3 or above
 
 ### Version 1.5 (2016 January 22)
 

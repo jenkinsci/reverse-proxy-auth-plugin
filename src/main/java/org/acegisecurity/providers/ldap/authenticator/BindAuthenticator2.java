@@ -25,7 +25,6 @@ package org.acegisecurity.providers.ldap.authenticator;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.acegisecurity.ldap.InitialDirContextFactory;
 import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 
@@ -35,9 +34,7 @@ import org.acegisecurity.userdetails.ldap.LdapUserDetails;
  * @author Kohsuke Kawaguchi
  */
 public class BindAuthenticator2 extends BindAuthenticator {
-    /**
-     * If we ever had a successful authentication,
-     */
+    /** If we ever had a successful authentication, */
     private boolean hadSuccessfulAuthentication;
 
     public BindAuthenticator2(InitialDirContextFactory initialDirContextFactory) {
@@ -53,8 +50,10 @@ public class BindAuthenticator2 extends BindAuthenticator {
 
     @Override
     void handleBindException(String userDn, String username, Throwable cause) {
-        LOGGER.log(hadSuccessfulAuthentication? Level.FINE : Level.WARNING,
-            "Failed to bind to LDAP: userDn"+userDn+"  username="+username,cause);
+        LOGGER.log(
+                hadSuccessfulAuthentication ? Level.FINE : Level.WARNING,
+                "Failed to bind to LDAP: userDn" + userDn + "  username=" + username,
+                cause);
         super.handleBindException(userDn, username, cause);
     }
 
