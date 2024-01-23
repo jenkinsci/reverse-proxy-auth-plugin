@@ -67,29 +67,29 @@ public class ReverseProxySecurityRealmTest {
 
     private ReverseProxySecurityRealm createBasicRealm() {
         return new ReverseProxySecurityRealm(
-                "X-Forwarded-User",         // forwardedUser
-                "X-Forwarded-Groups",       // headerGroups
-                "X-Forwarded-Email",        // forwardedEmail
-                "X-Forwarded-DisplayName",  // forwardedDisplayName
-                "|",                        // headerGroupsDelimiter
-                "",                         // customLogInUrl
-                "",                         // customLogOutUrl
-                "",                         // server
-                "",                         // rootDN
-                false,                      // inhibitInferRootDN
-                "",                         // userSearchBase
-                "",                         // userSearch
-                "",                         // groupSearchBase
-                "",                         // groupSearchFilter
-                "",                         // groupMembershipFilter
-                "",                         // groupNameAttribute
-                "",                         // managerDN
-                Secret.fromString(""),      // managerPassword
-                15,                         // updateInterval
-                false,                      // disableLdapEmailResolver
-                "",                         // displayNameLdapAttribute
-                ""                          // emailAddressLdapAttribute
-        );
+                "X-Forwarded-User", // forwardedUser
+                "X-Forwarded-Groups", // headerGroups
+                "X-Forwarded-Email", // forwardedEmail
+                "X-Forwarded-DisplayName", // forwardedDisplayName
+                "|", // headerGroupsDelimiter
+                "", // customLogInUrl
+                "", // customLogOutUrl
+                "", // server
+                "", // rootDN
+                false, // inhibitInferRootDN
+                "", // userSearchBase
+                "", // userSearch
+                "", // groupSearchBase
+                "", // groupSearchFilter
+                "", // groupMembershipFilter
+                "", // groupNameAttribute
+                "", // managerDN
+                Secret.fromString(""), // managerPassword
+                15, // updateInterval
+                false, // disableLdapEmailResolver
+                "", // displayNameLdapAttribute
+                "" // emailAddressLdapAttribute
+                );
     }
 
     @Test

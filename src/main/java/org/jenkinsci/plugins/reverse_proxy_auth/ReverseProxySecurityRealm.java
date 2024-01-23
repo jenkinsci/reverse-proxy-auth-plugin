@@ -31,7 +31,6 @@ import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.Descriptor;
-import hudson.model.UserPropertyDescriptor;
 import hudson.model.User;
 import hudson.security.*;
 import hudson.tasks.Mailer;
@@ -141,15 +140,15 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     /** Search Template used when the groups are in the header. */
     private ReverseProxySearchTemplate proxyTemplate;
 
-	/**
-	 * The name of the header which the email has to be extracted from.
-	 */
-	public final String forwardedEmail;
+    /**
+     * The name of the header which the email has to be extracted from.
+     */
+    public final String forwardedEmail;
 
-	/**
-	 * The name of the header which the display name has to be extracted from.
-	 */
-	public final String forwardedDisplayName;
+    /**
+     * The name of the header which the display name has to be extracted from.
+     */
+    public final String forwardedDisplayName;
 
     /** Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP. */
     private transient LdapTemplate ldapTemplate;
@@ -268,7 +267,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     /** Custom post logout url */
     public final String customLogInUrl;
-	public final String customLogOutUrl;
+
+    public final String customLogOutUrl;
 
     @DataBoundConstructor
     public ReverseProxySecurityRealm(
@@ -296,8 +296,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             String emailAddressLdapAttribute) {
 
         this.forwardedUser = fixEmptyAndTrim(forwardedUser);
-		this.forwardedEmail = fixEmptyAndTrim(forwardedEmail);
-		this.forwardedDisplayName = fixEmptyAndTrim(forwardedDisplayName);
+        this.forwardedEmail = fixEmptyAndTrim(forwardedEmail);
+        this.forwardedDisplayName = fixEmptyAndTrim(forwardedDisplayName);
 
         this.headerGroups = headerGroups;
         if (!StringUtils.isBlank(headerGroupsDelimiter)) {
@@ -543,14 +543,14 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                             }
                         }
 
-					} else {
-						//Without LDAP, retrieve user data from the headers
-						ForwardedUserData forwardedData = retrieveForwardedData(r);
-						User user = User.get(userFromHeader);
-						if (user != null) {
-							forwardedData.update(user);
-						}
-						String groups = r.getHeader(headerGroups);
+                    } else {
+                        // Without LDAP, retrieve user data from the headers
+                        ForwardedUserData forwardedData = retrieveForwardedData(r);
+                        User user = User.get(userFromHeader);
+                        if (user != null) {
+                            forwardedData.update(user);
+                        }
+                        String groups = r.getHeader(headerGroups);
 
                         List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
                         localAuthorities.add(AUTHENTICATED_AUTHORITY);
@@ -597,16 +597,16 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
         return new ChainedServletFilter(defaultFilter, filter);
     }
 
-	private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
-		ForwardedUserData toReturn = new ForwardedUserData();
-		if (forwardedEmail != null) {
-				toReturn.setEmail(r.getHeader(forwardedEmail));
-		}
-		if (forwardedDisplayName != null) {
-				toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
-		}
-		return toReturn;
-	}
+    private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
+        ForwardedUserData toReturn = new ForwardedUserData();
+        if (forwardedEmail != null) {
+            toReturn.setEmail(r.getHeader(forwardedEmail));
+        }
+        if (forwardedDisplayName != null) {
+            toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
+        }
+        return toReturn;
+    }
 
     @Override
     public boolean canLogOut() {

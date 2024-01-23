@@ -1,14 +1,12 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.data;
 
-import java.util.Collections;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.Rule;
-
 import hudson.model.User;
 import hudson.tasks.Mailer;
 import jenkins.model.Jenkins;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.MockAuthorizationStrategy;
 
@@ -21,7 +19,8 @@ public class ForwardedUserDataTest {
 
     @Before
     public void setup() {
-        j.jenkins.setAuthorizationStrategy(new MockAuthorizationStrategy().grant(Jenkins.READ).everywhere().to("Max Mustermann"));
+        j.jenkins.setAuthorizationStrategy(
+                new MockAuthorizationStrategy().grant(Jenkins.READ).everywhere().to("Max Mustermann"));
 
         forwardedUserData = new ForwardedUserData();
         user = User.getOrCreateByIdOrFullName("Max Mustermann");
