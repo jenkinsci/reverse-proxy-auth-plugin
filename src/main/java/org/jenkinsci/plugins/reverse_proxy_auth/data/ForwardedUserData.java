@@ -5,7 +5,7 @@ import java.io.IOException;
 import hudson.model.User;
 import hudson.tasks.Mailer;
 
-/** 
+/**
  * User data forwarded by the reverse proxy
  * **/
 public class ForwardedUserData {
@@ -27,7 +27,7 @@ public class ForwardedUserData {
 		this.displayName = displayName;
 	}
 
-	/** 
+	/**
 	 * Update the forwarded data to the jenkins user.
 	 * @return true if updated and saved
 	 * **/
@@ -58,7 +58,7 @@ public class ForwardedUserData {
 		boolean toReturn = false;
 		if(isNotNullHeader(email)){
 			Mailer.UserProperty emailProp = user.getProperty(Mailer.UserProperty.class);
-			if (emailProp == null || !email.equals(emailProp.getConfiguredAddress())) { 
+			if (emailProp == null || !email.equals(emailProp.getConfiguredAddress())) {
 				emailProp = new Mailer.UserProperty(email);
 				try {
 					user.addProperty(emailProp);
