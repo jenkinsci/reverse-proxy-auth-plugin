@@ -15,11 +15,11 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
  * limitations under the License.
  */
 
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
-
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.GrantedAuthorityImpl;
 import org.apache.commons.logging.Log;
@@ -30,131 +30,121 @@ import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.util.Assert;
 
-import edu.umd.cs.findbugs.annotations.CheckForNull;
-
-
 /**
  * @author Wilder rodrigues (wrodrigues@schuberphilis.com)
  */
 public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuthoritiesPopulator {
 
-	private static final Log logger = LogFactory.getLog(DefaultReverseProxyAuthoritiesPopulator.class);
+    private static final Log logger = LogFactory.getLog(DefaultReverseProxyAuthoritiesPopulator.class);
 
-	/**
-	 * A default role which will be assigned to all authenticated users if set
-	 */
-	private GrantedAuthority defaultRole;
+    /** A default role which will be assigned to all authenticated users if set */
+    private GrantedAuthority defaultRole;
 
-	/**
-	 * An initial context factory is only required if searching for groups is required.
-	 */
-	private final ReverseProxySearchTemplate reverseProxyTemplate;
+    /** An initial context factory is only required if searching for groups is required. */
+    private final ReverseProxySearchTemplate reverseProxyTemplate;
 
-	/**
-	 * Attributes of the User's LDAP Object that contain role name information.
-	 */
+    /** Attributes of the User's LDAP Object that contain role name information. */
+    private String rolePrefix = "ROLE_";
 
-	private String rolePrefix = "ROLE_";
-	private boolean convertToUpperCase = true;
+    private boolean convertToUpperCase = true;
 
-	//TODO: replace by a modern collection?
-	@CheckForNull
-	protected Hashtable<String, GrantedAuthority[]> authContext;
+    // TODO: replace by a modern collection?
+    @CheckForNull
+    protected Hashtable<String, GrantedAuthority[]> authContext;
 
-	/**
-	 * Constructor for group search scenarios. {@code userRoleAttributes} may still be
-	 * set as a property.
-	 * @param authContext Authentication context.
-	 *                    May be {@code null}
-	 */
-	public DefaultReverseProxyAuthoritiesPopulator(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
-		this.authContext = authContext != null ? new Hashtable<>(authContext) : null;
-		reverseProxyTemplate = new ReverseProxySearchTemplate();
-	}
+    /**
+     * Constructor for group search scenarios. {@code userRoleAttributes} may still be set as a
+     * property.
+     *
+     * @param authContext Authentication context. May be {@code null}
+     */
+    public DefaultReverseProxyAuthoritiesPopulator(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
+        this.authContext = authContext != null ? new Hashtable<>(authContext) : null;
+        reverseProxyTemplate = new ReverseProxySearchTemplate();
+    }
 
-	/**
-	 * This method should be overridden if required to obtain any additional
-	 * roles for the given user (on top of those obtained from the standard
-	 * search implemented by this class).
-	 *
-	 * @param reverseProxyUser the user who's roles are required
-	 * @return the extra roles which will be merged with those returned by the group search
-	 */
+    /**
+     * This method should be overridden if required to obtain any additional roles for the given user
+     * (on top of those obtained from the standard search implemented by this class).
+     *
+     * @param reverseProxyUser the user who's roles are required
+     * @return the extra roles which will be merged with those returned by the group search
+     */
+    protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails reverseProxyUser) {
+        return null;
+    }
 
-	protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails reverseProxyUser) {
-		return null;
-	}
+    /**
+     * Obtains the authorities for the user who's directory entry is represented by the supplied
+     * LdapUserDetails object.
+     *
+     * @param userDetails the user who's authorities are required
+     * @return the set of roles granted to the user.
+     */
+    public final GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
 
-	/**
-	 * Obtains the authorities for the user who's directory entry is represented by
-	 * the supplied LdapUserDetails object.
-	 *
-	 * @param userDetails the user who's authorities are required
-	 * @return the set of roles granted to the user.
-	 */
-	public final GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
+        String username = userDetails.getUsername();
 
-		String username = userDetails.getUsername();
+        Set<GrantedAuthority> roles = getGroupMembershipRoles(username);
 
-		Set<GrantedAuthority> roles = getGroupMembershipRoles(username);
+        Set<GrantedAuthority> extraRoles = getAdditionalRoles(userDetails);
 
-		Set<GrantedAuthority> extraRoles = getAdditionalRoles(userDetails);
+        if (extraRoles != null) {
+            roles.addAll(extraRoles);
+        }
 
-		if (extraRoles != null) {
-			roles.addAll(extraRoles);
-		}
+        if (defaultRole != null) {
+            roles.add(defaultRole);
+        }
 
-		if (defaultRole != null) {
-			roles.add(defaultRole);
-		}
+        return roles.toArray(new GrantedAuthority[roles.size()]);
+    }
 
-		return roles.toArray(new GrantedAuthority[roles.size()]);
-	}
+    public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
+        Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
-	public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
-		Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
+        final @CheckForNull GrantedAuthority[] contextAuthorities =
+                authContext != null ? authContext.get(username) : null;
 
-		final @CheckForNull GrantedAuthority[] contextAuthorities = authContext != null ? authContext.get(username) : null;
+        SearchTemplate searchTemplate = new UserSearchTemplate(username);
 
-		SearchTemplate searchTemplate = new UserSearchTemplate(username);
+        Set<String> userRoles = reverseProxyTemplate.searchForSingleAttributeValues(searchTemplate, contextAuthorities);
 
-		Set<String> userRoles = reverseProxyTemplate.searchForSingleAttributeValues(searchTemplate, contextAuthorities);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Roles from search: " + userRoles);
+        }
 
-		if (logger.isDebugEnabled()) {
-			logger.debug("Roles from search: " + userRoles);
-		}
+        Iterator<String> it = userRoles.iterator();
 
-		Iterator<String> it = userRoles.iterator();
+        while (it.hasNext()) {
+            String role = it.next();
 
-		while (it.hasNext()) {
-			String role = it.next();
+            if (convertToUpperCase) {
+                role = role.toUpperCase();
+            }
 
-			if (convertToUpperCase) {
-				role = role.toUpperCase();
-			}
+            authorities.add(new GrantedAuthorityImpl(rolePrefix + role));
+        }
 
-			authorities.add(new GrantedAuthorityImpl(rolePrefix + role));
-		}
+        return authorities;
+    }
 
-		return authorities;
-	}
+    public void setConvertToUpperCase(boolean convertToUpperCase) {
+        this.convertToUpperCase = convertToUpperCase;
+    }
 
-	public void setConvertToUpperCase(boolean convertToUpperCase) {
-		this.convertToUpperCase = convertToUpperCase;
-	}
+    /**
+     * The default role which will be assigned to all users.
+     *
+     * @param defaultRole the role name, including any desired prefix.
+     */
+    public void setDefaultRole(String defaultRole) {
+        Assert.notNull(defaultRole, "The defaultRole property cannot be set to null");
+        this.defaultRole = new GrantedAuthorityImpl(defaultRole);
+    }
 
-	/**
-	 * The default role which will be assigned to all users.
-	 *
-	 * @param defaultRole the role name, including any desired prefix.
-	 */
-	public void setDefaultRole(String defaultRole) {
-		Assert.notNull(defaultRole, "The defaultRole property cannot be set to null");
-		this.defaultRole = new GrantedAuthorityImpl(defaultRole);
-	}
-
-	public void setRolePrefix(String rolePrefix) {
-		Assert.notNull(rolePrefix, "rolePrefix must not be null");
-		this.rolePrefix = rolePrefix;
-	}
+    public void setRolePrefix(String rolePrefix) {
+        Assert.notNull(rolePrefix, "rolePrefix must not be null");
+        this.rolePrefix = rolePrefix;
+    }
 }

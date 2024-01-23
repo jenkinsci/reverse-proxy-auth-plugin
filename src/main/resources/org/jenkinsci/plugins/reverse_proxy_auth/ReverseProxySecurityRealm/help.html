@@ -18,5 +18,5 @@ RewriteCond %{LA-U:REMOTE_USER} (.+)
 RewriteRule .* - [E=RU:%1]
 RequestHeader set X-Forwarded-User %{RU}e
 </pre>
-    
+
 </div>
