@@ -26,6 +26,12 @@ THE SOFTWARE.
   <f:entry title="${%Header User Name}">
     <f:textbox name="forwardedUser" value="${instance.forwardedUser}" default="X-Forwarded-User" />
   </f:entry>
+  <f:entry title="${%Header User Mail}">
+    <f:textbox name="forwardedEmail" value="${instance.forwardedEmail}" default="X-Forwarded-Mail" />
+  </f:entry>
+  <f:entry title="${%Header User Display Name}">
+    <f:textbox name="forwardedDisplayName" value="${instance.forwardedDisplayName}" default="X-Forwarded-DisplayName" />
+  </f:entry>
   <f:entry title="${%Header Groups Name}">
     <f:textbox field="headerGroups" default="X-Forwarded-Groups" />
   </f:entry>

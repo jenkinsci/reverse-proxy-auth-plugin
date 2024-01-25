@@ -94,6 +94,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthenti
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthenticationProvider;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulatorImpl;
+import org.jenkinsci.plugins.reverse_proxy_auth.data.ForwardedUserData;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.GroupSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
@@ -138,6 +139,16 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     /** Search Template used when the groups are in the header. */
     private ReverseProxySearchTemplate proxyTemplate;
+
+    /**
+     * The name of the header which the email has to be extracted from.
+     */
+    public final String forwardedEmail;
+
+    /**
+     * The name of the header which the display name has to be extracted from.
+     */
+    public final String forwardedDisplayName;
 
     /** Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP. */
     private transient LdapTemplate ldapTemplate;
@@ -262,6 +273,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     @DataBoundConstructor
     public ReverseProxySecurityRealm(
             String forwardedUser,
+            String forwardedEmail,
+            String forwardedDisplayName,
             String headerGroups,
             String headerGroupsDelimiter,
             String customLogInUrl,
@@ -283,6 +296,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             String emailAddressLdapAttribute) {
 
         this.forwardedUser = fixEmptyAndTrim(forwardedUser);
+        this.forwardedEmail = fixEmptyAndTrim(forwardedEmail);
+        this.forwardedDisplayName = fixEmptyAndTrim(forwardedDisplayName);
 
         this.headerGroups = headerGroups;
         if (!StringUtils.isBlank(headerGroupsDelimiter)) {
@@ -529,6 +544,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                         }
 
                     } else {
+                        // Without LDAP, retrieve user data from the headers
+                        ForwardedUserData forwardedData = retrieveForwardedData(r);
+                        User user = User.get(userFromHeader);
+                        if (user != null) {
+                            forwardedData.update(user);
+                        }
                         String groups = r.getHeader(headerGroups);
 
                         List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
@@ -574,6 +595,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
         };
         Filter defaultFilter = super.createFilter(filterConfig);
         return new ChainedServletFilter(defaultFilter, filter);
+    }
+
+    private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
+        ForwardedUserData toReturn = new ForwardedUserData();
+        if (forwardedEmail != null) {
+            toReturn.setEmail(r.getHeader(forwardedEmail));
+        }
+        if (forwardedDisplayName != null) {
+            toReturn.setDisplayName(r.getHeader(forwardedDisplayName));
+        }
+        return toReturn;
     }
 
     @Override

@@ -69,6 +69,8 @@ public class ReverseProxySecurityRealmTest {
         return new ReverseProxySecurityRealm(
                 "X-Forwarded-User", // forwardedUser
                 "X-Forwarded-Groups", // headerGroups
+                "X-Forwarded-Email", // forwardedEmail
+                "X-Forwarded-DisplayName", // forwardedDisplayName
                 "|", // headerGroupsDelimiter
                 "", // customLogInUrl
                 "", // customLogOutUrl
