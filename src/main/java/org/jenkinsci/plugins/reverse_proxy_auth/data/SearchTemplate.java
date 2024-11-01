@@ -2,9 +2,10 @@ package org.jenkinsci.plugins.reverse_proxy_auth.data;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import org.acegisecurity.GrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
@@ -17,7 +18,7 @@ public abstract class SearchTemplate {
         this.userOrGroup = userOrGroup;
     }
 
-    public abstract Set<String> processAuthorities(final GrantedAuthority[] authorities);
+    public abstract Set<String> processAuthorities(final Collection<? extends GrantedAuthority> authorities);
 
     /**
      * Process authorities.
@@ -26,13 +27,13 @@ public abstract class SearchTemplate {
      * @return Set of group and user names
      */
     @NonNull
-    protected Set<String> doProcess(final @CheckForNull GrantedAuthority[] authorities) {
+    protected Set<String> doProcess(final @CheckForNull Collection<? extends GrantedAuthority> authorities) {
         // TODO: refactoring: use emptySet() ?
         Set<String> authorityValues = new HashSet<String>();
         if (authorities != null) {
-            for (int i = 0; i < authorities.length; i++) {
+            for (GrantedAuthority grantedAuthority : authorities) {
 
-                String authority = authorities[i].getAuthority();
+                String authority = grantedAuthority.getAuthority();
 
                 if (authority.toUpperCase().startsWith("CN=")) {
                     String groupName;

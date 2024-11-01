@@ -15,17 +15,19 @@
 
 package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 
-import org.acegisecurity.AuthenticationException;
-import org.acegisecurity.AuthenticationServiceException;
-import org.acegisecurity.BadCredentialsException;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.providers.dao.AbstractUserDetailsAuthenticationProvider;
-import org.acegisecurity.userdetails.UserDetails;
+import java.util.Collection;
+import java.util.Collections;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.dao.DataAccessException;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.dao.AbstractUserDetailsAuthenticationProvider;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -116,7 +118,8 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
 
         // Hack for now to pass user's own authorities. Will make the full greanted authorities as a
         // bean in the future.
-        GrantedAuthority[] extraAuthorities = getAuthoritiesPopulator().getGrantedAuthorities(user);
+        Collection<? extends GrantedAuthority> extraAuthorities =
+                getAuthoritiesPopulator().getGrantedAuthorities(user);
         user.setAuthorities(extraAuthorities);
 
         return user;
@@ -164,8 +167,9 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
     }
 
     private static class NullAuthoritiesPopulator implements ReverseProxyAuthoritiesPopulator {
-        public GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
-            return new GrantedAuthority[0];
+        @Override
+        public Collection<? extends GrantedAuthority> getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
+            return Collections.emptySet();
         }
     }
 }

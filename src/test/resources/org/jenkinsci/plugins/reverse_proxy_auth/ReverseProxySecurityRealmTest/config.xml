@@ -9,7 +9,7 @@
     <securityRealm class="org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySecurityRealm" plugin="reverse-proxy-auth-plugin@1.7.3">
         <managerPassword>dGhlTWFuYWdlclBhc3N3MHJk</managerPassword>
         <server>theServer</server>
-        <rootDN>theRootDN</rootDN>
+        <rootDN>dc=example,dc=com</rootDN>
         <inhibitInferRootDN>false</inhibitInferRootDN>
         <userSearchBase></userSearchBase>
         <userSearch>uid={0}</userSearch>

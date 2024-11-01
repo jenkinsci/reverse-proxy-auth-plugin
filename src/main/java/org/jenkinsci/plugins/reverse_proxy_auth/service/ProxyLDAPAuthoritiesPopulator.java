@@ -6,12 +6,13 @@ import hudson.security.SecurityRealm;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
-import org.acegisecurity.ldap.InitialDirContextFactory;
-import org.acegisecurity.providers.ldap.LdapAuthoritiesPopulator;
-import org.acegisecurity.providers.ldap.populator.DefaultLdapAuthoritiesPopulator;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
+import jenkins.util.SetContextClassLoader;
+import org.springframework.ldap.core.ContextSource;
+import org.springframework.ldap.core.DirContextOperations;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.ldap.userdetails.DefaultLdapAuthoritiesPopulator;
+import org.springframework.security.ldap.userdetails.LdapAuthoritiesPopulator;
 
 /** {@link LdapAuthoritiesPopulator} that adds the automatic 'authenticated' role. */
 public class ProxyLDAPAuthoritiesPopulator extends DefaultLdapAuthoritiesPopulator {
@@ -20,17 +21,16 @@ public class ProxyLDAPAuthoritiesPopulator extends DefaultLdapAuthoritiesPopulat
     private String rolePrefix = "ROLE_";
     private boolean convertToUpperCase = true;
 
-    public ProxyLDAPAuthoritiesPopulator(InitialDirContextFactory initialDirContextFactory, String groupSearchBase) {
-        super(initialDirContextFactory, fixNull(groupSearchBase));
+    public ProxyLDAPAuthoritiesPopulator(ContextSource contextSource, String groupSearchBase) {
+        super(contextSource, fixNull(groupSearchBase));
 
         super.setRolePrefix("");
         super.setConvertToUpperCase(false);
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    protected Set getAdditionalRoles(LdapUserDetails ldapUser) {
-        return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY);
+    protected Set<GrantedAuthority> getAdditionalRoles(DirContextOperations user, String username) {
+        return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY2);
     }
 
     @Override
@@ -54,7 +54,10 @@ public class ProxyLDAPAuthoritiesPopulator extends DefaultLdapAuthoritiesPopulat
     @Override
     @SuppressWarnings("unchecked")
     public Set<GrantedAuthority> getGroupMembershipRoles(String userDn, String username) {
-        Set<GrantedAuthority> names = super.getGroupMembershipRoles(userDn, username);
+        Set<GrantedAuthority> names;
+        try (SetContextClassLoader sccl = new SetContextClassLoader(ProxyLDAPAuthoritiesPopulator.class)) {
+            names = super.getGroupMembershipRoles(userDn, username);
+        }
 
         Set<GrantedAuthority> r = new HashSet<GrantedAuthority>(names.size() * 2);
         r.addAll(names);
@@ -64,7 +67,7 @@ public class ProxyLDAPAuthoritiesPopulator extends DefaultLdapAuthoritiesPopulat
 
             // backward compatible name mangling
             if (convertToUpperCase) role = role.toUpperCase();
-            r.add(new GrantedAuthorityImpl(rolePrefix + role));
+            r.add(new SimpleGrantedAuthority(rolePrefix + role));
         }
 
         return r;

@@ -1,7 +1,8 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.data;
 
+import java.util.Collection;
 import java.util.Set;
-import org.acegisecurity.GrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
 
 /**
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
@@ -13,7 +14,7 @@ public class UserSearchTemplate extends SearchTemplate {
     }
 
     @Override
-    public Set<String> processAuthorities(GrantedAuthority[] authorities) {
+    public Set<String> processAuthorities(Collection<? extends GrantedAuthority> authorities) {
         return doProcess(authorities);
     }
 }

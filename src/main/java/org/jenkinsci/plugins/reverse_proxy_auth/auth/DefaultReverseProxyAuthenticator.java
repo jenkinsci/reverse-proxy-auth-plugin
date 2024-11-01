@@ -3,14 +3,9 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.acegisecurity.AcegiMessageSource;
-import org.acegisecurity.Authentication;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySecurityRealm;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.beans.factory.InitializingBean;
@@ -19,6 +14,11 @@ import org.springframework.context.MessageSourceAware;
 import org.springframework.context.support.MessageSourceAccessor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.SpringSecurityMessageSource;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.Assert;
 
 /**
@@ -30,23 +30,27 @@ public class DefaultReverseProxyAuthenticator
     private static final Logger LOGGER = Logger.getLogger(ReverseProxySecurityRealm.class.getName());
 
     @SuppressFBWarnings(value = "URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD", justification = "It is a part of public API :(")
-    protected MessageSourceAccessor messages = AcegiMessageSource.getAccessor();
+    protected MessageSourceAccessor messages = SpringSecurityMessageSource.getAccessor();
 
     private final String username;
-    private final GrantedAuthority[] authorities;
+    private final Collection<? extends GrantedAuthority> authorities;
 
-    public DefaultReverseProxyAuthenticator(String username, @CheckForNull GrantedAuthority[] authorities) {
+    public DefaultReverseProxyAuthenticator(
+            String username, @CheckForNull Collection<? extends GrantedAuthority> authorities) {
         this.username = username;
-        this.authorities = authorities != null ? Arrays.copyOf(authorities, authorities.length) : null;
+        this.authorities = authorities;
     }
 
+    @Override
     public void setMessageSource(@NonNull MessageSource messageSource) {
-        Assert.notNull("Message source must not be null");
+        Assert.notNull(messageSource, "Message source must not be null");
         messages = new MessageSourceAccessor(messageSource);
     }
 
-    public void afterPropertiesSet() throws Exception {}
+    @Override
+    public void afterPropertiesSet() {}
 
+    @Override
     public ReverseProxyUserDetails authenticate(String username, String password) throws DataAccessException {
 
         LOGGER.log(Level.INFO, "DefaultReverseProxyAuthenticator::authenticate ==> {0} to {1}", new Object[] {
