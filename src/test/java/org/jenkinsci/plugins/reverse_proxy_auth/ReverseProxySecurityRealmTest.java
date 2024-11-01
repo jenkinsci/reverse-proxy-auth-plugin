@@ -11,12 +11,9 @@ import hudson.util.Secret;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.Callable;
 import jenkins.model.Jenkins;
-import org.acegisecurity.Authentication;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.userdetails.UserDetails;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -25,6 +22,9 @@ import org.junit.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.recipes.LocalData;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 
 public class ReverseProxySecurityRealmTest {
     @Rule
@@ -40,7 +40,7 @@ public class ReverseProxySecurityRealmTest {
     @Test
     public void basicGetUserDetails() {
         final ReverseProxySecurityRealm realm = createBasicRealm();
-        final UserDetails userDetails = realm.loadUserByUsername("test@example.com");
+        final UserDetails userDetails = realm.loadUserByUsername2("test@example.com");
         Assert.assertEquals("test@example.com", userDetails.getUsername());
     }
 
@@ -55,13 +55,13 @@ public class ReverseProxySecurityRealmTest {
         final Authentication authentication = client.executeOnServer(new Callable<Authentication>() {
             @Override
             public Authentication call() {
-                return Jenkins.getAuthentication();
+                return Jenkins.getAuthentication2();
             }
         });
         Assert.assertEquals(
                 "Authentication should match",
                 new UsernamePasswordAuthenticationToken(
-                        "test@example.com", "", new GrantedAuthority[] {SecurityRealm.AUTHENTICATED_AUTHORITY}),
+                        "test@example.com", "", Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY2)),
                 authentication);
     }
 

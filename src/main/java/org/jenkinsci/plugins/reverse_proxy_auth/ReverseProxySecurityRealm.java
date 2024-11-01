@@ -38,12 +38,19 @@ import hudson.tasks.Mailer.UserProperty;
 import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.Secret;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.FilterConfig;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -59,36 +66,12 @@ import javax.naming.Context;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
+import javax.naming.directory.BasicAttributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
-import org.acegisecurity.Authentication;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
-import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.ldap.DefaultInitialDirContextFactory;
-import org.acegisecurity.ldap.LdapDataAccessException;
-import org.acegisecurity.ldap.LdapTemplate;
-import org.acegisecurity.ldap.search.FilterBasedLdapUserSearch;
-import org.acegisecurity.providers.AuthenticationProvider;
-import org.acegisecurity.providers.ProviderManager;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.providers.anonymous.AnonymousAuthenticationProvider;
-import org.acegisecurity.providers.ldap.LdapAuthenticationProvider;
-import org.acegisecurity.providers.ldap.authenticator.BindAuthenticator2;
-import org.acegisecurity.providers.rememberme.RememberMeAuthenticationProvider;
-import org.acegisecurity.userdetails.UserDetails;
-import org.acegisecurity.userdetails.UserDetailsService;
-import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
+import jenkins.util.SetContextClassLoader;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthenticator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthenticationProvider;
@@ -103,9 +86,29 @@ import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopu
 import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 import org.kohsuke.stapler.verb.POST;
 import org.springframework.dao.DataAccessException;
+import org.springframework.ldap.core.DirContextOperations;
+import org.springframework.security.authentication.AnonymousAuthenticationProvider;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.RememberMeAuthenticationProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.ldap.DefaultSpringSecurityContextSource;
+import org.springframework.security.ldap.SpringSecurityLdapTemplate;
+import org.springframework.security.ldap.authentication.LdapAuthenticationProvider;
+import org.springframework.security.ldap.search.FilterBasedLdapUserSearch;
+import org.springframework.security.ldap.search.LdapUserSearch;
+import org.springframework.security.ldap.userdetails.LdapUserDetails;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -151,10 +154,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     public final String forwardedDisplayName;
 
     /** Created in {@link #createSecurityComponents()}. Can be used to connect to LDAP. */
-    private transient LdapTemplate ldapTemplate;
+    private transient SpringSecurityLdapTemplate ldapTemplate;
 
     /** Keeps the state of connected users and their granted authorities. */
-    private transient Hashtable<String, GrantedAuthority[]> authContext;
+    private transient Hashtable<String, Collection<? extends GrantedAuthority>> authContext;
 
     /**
      * Keeps the frequency which the authorities cache is updated per connected user. The types String
@@ -241,7 +244,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
      * The authorities that are granted to the authenticated user. It is not necessary, that the
      * authorities will be stored in the config.xml, they blow up the config.xml
      */
-    public transient GrantedAuthority[] authorities = new GrantedAuthority[0];
+    public transient Collection<? extends GrantedAuthority> authorities = Collections.emptySet();
 
     /** The name of the header which the username has to be extracted from. */
     @CheckForNull
@@ -341,7 +344,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
         this.updateInterval = (updateInterval == null || updateInterval <= 0) ? CHECK_INTERVAL : updateInterval;
 
-        authorities = new GrantedAuthority[0];
+        authorities = Collections.emptySet();
 
         this.disableLdapEmailResolver = disableLdapEmailResolver;
         this.displayNameLdapAttribute = displayNameLdapAttribute;
@@ -479,8 +482,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     @Override
     public Filter createFilter(FilterConfig filterConfig) {
         Filter filter = new Filter() {
-            public void init(FilterConfig filterConfig) throws ServletException {}
+            @Override
+            public void init(FilterConfig filterConfig) {}
 
+            @Override
             public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
                     throws IOException, ServletException {
                 HttpServletRequest r = (HttpServletRequest) request;
@@ -508,7 +513,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
                 String userFromHeader = null;
 
-                Authentication auth = Jenkins.ANONYMOUS;
+                Authentication auth = Jenkins.ANONYMOUS2;
                 if ((forwardedUser != null && (userFromHeader = r.getHeader(forwardedUser)) != null)
                         || userFromApiToken != null) {
                     LOGGER.log(Level.FINE, "USER LOGGED IN: {0}", userFromHeader);
@@ -522,25 +527,24 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
                     if (getLDAPURL() != null) {
 
-                        GrantedAuthority[] storedGrants = authContext.get(userFromHeader);
-                        if (storedGrants != null && storedGrants.length > 1) {
+                        Collection<? extends GrantedAuthority> storedGrants = authContext.get(userFromHeader);
+                        if (storedGrants != null && storedGrants.size() > 1) {
                             authorities = retrieveAuthoritiesIfNecessary(userFromHeader, storedGrants);
                         } else {
                             try {
-                                LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
+                                LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername2(userFromHeader);
                                 authorities = userDetails.getAuthorities();
 
-                                Set<GrantedAuthority> tempLocalAuthorities =
-                                        new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-                                authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                                Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(authorities);
+                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY2);
+                                authorities = tempLocalAuthorities;
 
                             } catch (UsernameNotFoundException e) {
                                 LOGGER.log(Level.WARNING, "User not found in the LDAP directory: " + e.getMessage());
 
                                 Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>();
-                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-                                authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                                tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY2);
+                                authorities = tempLocalAuthorities;
                             }
                         }
 
@@ -554,17 +558,17 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                         String groups = r.getHeader(headerGroups);
 
                         List<GrantedAuthority> localAuthorities = new ArrayList<GrantedAuthority>();
-                        localAuthorities.add(AUTHENTICATED_AUTHORITY);
+                        localAuthorities.add(AUTHENTICATED_AUTHORITY2);
 
                         if (groups != null) {
                             StringTokenizer tokenizer = new StringTokenizer(groups, headerGroupsDelimiter);
                             while (tokenizer.hasMoreTokens()) {
                                 final String token = tokenizer.nextToken().trim();
-                                localAuthorities.add(new GrantedAuthorityImpl(token));
+                                localAuthorities.add(new SimpleGrantedAuthority(token));
                             }
                         }
 
-                        authorities = localAuthorities.toArray(new GrantedAuthority[0]);
+                        authorities = localAuthorities;
 
                         SearchTemplate searchTemplate = new UserSearchTemplate(userFromHeader);
 
@@ -574,10 +578,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
                         String[] authString = foundAuthorities.toArray(new String[0]);
                         for (int i = 0; i < authString.length; i++) {
-                            tempLocalAuthorities.add(new GrantedAuthorityImpl(authString[i]));
+                            tempLocalAuthorities.add(new SimpleGrantedAuthority(authString[i]));
                         }
 
-                        authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                        authorities = tempLocalAuthorities;
                         authContext.put(userFromHeader, authorities);
 
                         auth = new UsernamePasswordAuthenticationToken(userFromHeader, "", authorities);
@@ -592,10 +596,11 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                 chain.doFilter(r, response);
             }
 
+            @Override
             public void destroy() {}
         };
         Filter defaultFilter = super.createFilter(filterConfig);
-        return new ChainedServletFilter(defaultFilter, filter);
+        return new ChainedServletFilter2(defaultFilter, filter);
     }
 
     private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
@@ -619,9 +624,9 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     }
 
     @Override
-    public String getPostLogOutUrl(StaplerRequest req, Authentication auth) {
+    public String getPostLogOutUrl2(StaplerRequest2 req, Authentication auth) {
         if (customLogOutUrl == null) {
-            return super.getPostLogOutUrl(req, auth);
+            return super.getPostLogOutUrl2(req, auth);
         } else {
             return customLogOutUrl;
         }
@@ -635,55 +640,59 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                     new DefaultReverseProxyAuthenticator(retrievedUser, authorities);
             ReverseProxyAuthoritiesPopulatorImpl authoritiesPopulator =
                     new ReverseProxyAuthoritiesPopulatorImpl(authContext);
-            ProviderManager pm = new ProviderManager();
             List<AuthenticationProvider> providers = new ArrayList<>();
             // talk to Reverse Proxy Authentication
             providers.add(new ReverseProxyAuthenticationProvider(authenticator, authoritiesPopulator));
             // these providers apply everywhere
-            RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
-            rmap.setKey(Jenkins.getInstance().getSecretKey());
+            RememberMeAuthenticationProvider rmap =
+                    new RememberMeAuthenticationProvider(Jenkins.get().getSecretKey());
             providers.add(rmap);
             // this doesn't mean we allow anonymous access.
             // we just authenticate anonymous users as such,
             // so that later authorization can reject them if so configured
-            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
-            aap.setKey("anonymous");
+            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider("anonymous");
             providers.add(aap);
-            pm.setProviders(providers);
+            ProviderManager pm = new ProviderManager(providers);
             return new SecurityComponents(pm, new ReverseProxyUserDetailsService(authoritiesPopulator));
         } else {
-            DefaultInitialDirContextFactory dirContextFactory = new DefaultInitialDirContextFactory(getLDAPURL());
+            DefaultSpringSecurityContextSource contextSource = new DefaultSpringSecurityContextSource(getLDAPURL());
             if (managerDN != null && getManagerPassword() != null) {
-                dirContextFactory.setManagerDn(managerDN);
-                dirContextFactory.setManagerPassword(
-                        fixEmptyAndTrim(getManagerPassword().getPlainText()));
+                contextSource.setUserDn(managerDN);
+                contextSource.setPassword(fixEmptyAndTrim(getManagerPassword().getPlainText()));
             }
-            dirContextFactory.setExtraEnvVars(Collections.singletonMap(Context.REFERRAL, "follow"));
-            ldapTemplate = new LdapTemplate(dirContextFactory);
+            contextSource.setBaseEnvironmentProperties(Collections.singletonMap(Context.REFERRAL, "follow"));
+            contextSource.afterPropertiesSet();
+            ldapTemplate = new SpringSecurityLdapTemplate(contextSource);
             FilterBasedLdapUserSearch ldapUserSearch =
-                    new FilterBasedLdapUserSearch(userSearchBase, userSearch, dirContextFactory);
+                    new FilterBasedLdapUserSearch(userSearchBase, userSearch, contextSource) {
+                        @Override
+                        public DirContextOperations searchForUser(String username) {
+                            try (SetContextClassLoader sccl =
+                                    new SetContextClassLoader(ReverseProxySecurityRealm.class)) {
+                                return super.searchForUser(username);
+                            }
+                        }
+                    };
             ldapUserSearch.setSearchSubtree(true);
-            BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(dirContextFactory);
+            BindAuthenticator2 bindAuthenticator = new BindAuthenticator2(contextSource);
             // this is when we need to find it.
             bindAuthenticator.setUserSearch(ldapUserSearch);
             ProxyLDAPAuthoritiesPopulator authoritiesPopulator =
-                    new ProxyLDAPAuthoritiesPopulator(dirContextFactory, groupSearchBase);
+                    new ProxyLDAPAuthoritiesPopulator(contextSource, groupSearchBase);
             // see DefaultLdapAuthoritiesPopulator for other possible configurations
             authoritiesPopulator.setSearchSubtree(true);
             authoritiesPopulator.setGroupSearchFilter("(| (member={0}) (uniqueMember={0}) (memberUid={1}))");
-            ProviderManager pm = new ProviderManager();
             List<AuthenticationProvider> providers = new ArrayList<>();
             // talk to Reverse Proxy Authentication + Authorisation via LDAP
             LdapAuthenticationProvider authenticationProvider =
                     new LdapAuthenticationProvider(bindAuthenticator, authoritiesPopulator);
             providers.add(authenticationProvider);
-            RememberMeAuthenticationProvider rmap = new RememberMeAuthenticationProvider();
-            rmap.setKey(Jenkins.getInstance().getSecretKey());
+            RememberMeAuthenticationProvider rmap =
+                    new RememberMeAuthenticationProvider(Jenkins.getInstance().getSecretKey());
             providers.add(rmap);
-            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider();
-            aap.setKey("anonymous");
+            AnonymousAuthenticationProvider aap = new AnonymousAuthenticationProvider("anonymous");
             providers.add(aap);
-            pm.setProviders(providers);
+            ProviderManager pm = new ProviderManager(providers);
             if (groupMembershipFilter != null || groupNameAttribute != null) {
                 if (groupMembershipFilter != null) {
                     authoritiesPopulator.setGroupSearchFilter(groupMembershipFilter);
@@ -698,26 +707,44 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
 
     /** {@inheritDoc} */
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
-        UserDetails userDetails = getSecurityComponents().userDetails.loadUserByUsername(username);
+    public UserDetails loadUserByUsername2(String username) throws UsernameNotFoundException {
+        UserDetails userDetails = getSecurityComponents().userDetails2.loadUserByUsername(username);
         if (userDetails instanceof LdapUserDetails) {
-            updateLdapUserDetails((LdapUserDetails) userDetails);
+            LdapUserSearch ldapUserSearch;
+            if (getSecurityComponents().userDetails2 instanceof ProxyLDAPUserDetailsService) {
+                ProxyLDAPUserDetailsService p = (ProxyLDAPUserDetailsService) getSecurityComponents().userDetails2;
+                ldapUserSearch = p.ldapSearch;
+            } else {
+                ldapUserSearch = null;
+            }
+            updateLdapUserDetails((LdapUserDetails) userDetails, ldapUserSearch);
         }
         return userDetails;
     }
 
-    public LdapUserDetails updateLdapUserDetails(LdapUserDetails d) {
+    private static Attributes getAttributes(LdapUserDetails details, @CheckForNull LdapUserSearch ldapUserSearch) {
+        if (ldapUserSearch != null) {
+            try {
+                return ldapUserSearch.searchForUser(details.getUsername()).getAttributes();
+            } catch (UsernameNotFoundException x) {
+                // ignore
+            }
+        }
+        return new BasicAttributes();
+    }
+
+    public LdapUserDetails updateLdapUserDetails(LdapUserDetails d, @CheckForNull LdapUserSearch ldapUserSearch) {
         LOGGER.log(Level.FINEST, "displayNameLdapAttribute" + displayNameLdapAttribute);
         LOGGER.log(Level.FINEST, "disableLdapEmailResolver" + disableLdapEmailResolver);
         LOGGER.log(Level.FINEST, "emailAddressLdapAttribute" + emailAddressLdapAttribute);
-        if (d.getAttributes() == null) {
+        if (getAttributes(d, ldapUserSearch) == null) {
             LOGGER.log(Level.FINEST, "getAttributes is null");
         } else {
             hudson.model.User u = hudson.model.User.get(d.getUsername());
             if (!StringUtils.isBlank(displayNameLdapAttribute)) {
                 LOGGER.log(Level.FINEST, "Getting user details from LDAP attributes");
                 try {
-                    Attribute attribute = d.getAttributes().get(displayNameLdapAttribute);
+                    Attribute attribute = getAttributes(d, ldapUserSearch).get(displayNameLdapAttribute);
                     String displayName = attribute == null ? null : (String) attribute.get();
                     LOGGER.log(Level.FINEST, "displayName is " + displayName);
                     if (StringUtils.isNotBlank(displayName)) {
@@ -729,7 +756,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             }
             if (!disableLdapEmailResolver && !StringUtils.isBlank(emailAddressLdapAttribute)) {
                 try {
-                    Attribute attribute = d.getAttributes().get(emailAddressLdapAttribute);
+                    Attribute attribute = getAttributes(d, ldapUserSearch).get(emailAddressLdapAttribute);
                     String mailAddress = attribute == null ? null : (String) attribute.get();
                     if (StringUtils.isNotBlank(mailAddress)) {
                         LOGGER.log(Level.FINEST, "mailAddress is " + mailAddress);
@@ -750,8 +777,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public GroupDetails loadGroupByGroupname(String groupname) throws UsernameNotFoundException, DataAccessException {
+    public GroupDetails loadGroupByGroupname2(String groupname, boolean fetchMembers) throws UsernameNotFoundException {
 
         final Set<String> groups;
 
@@ -763,7 +789,8 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                     searchBase, searchFilter, new String[] {groupname}, "cn");
         } else {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            GrantedAuthority[] authorities = authContext != null ? authContext.get(auth.getName()) : null;
+            Collection<? extends GrantedAuthority> authorities =
+                    authContext != null ? authContext.get(auth.getName()) : null;
 
             SearchTemplate searchTemplate = new GroupSearchTemplate(groupname);
 
@@ -857,28 +884,29 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             this.authoritiesPopulator = authoritiesPopulator;
         }
 
-        public ReverseProxyUserDetails loadUserByUsername(String username)
-                throws UsernameNotFoundException, DataAccessException {
+        @Override
+        public ReverseProxyUserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
             try {
                 ReverseProxyUserDetails proxyUser = new ReverseProxyUserDetails();
                 proxyUser.setUsername(username);
 
-                GrantedAuthority[] localAuthorities = authoritiesPopulator.getGrantedAuthorities(proxyUser);
+                Collection<? extends GrantedAuthority> localAuthorities =
+                        authoritiesPopulator.getGrantedAuthorities(proxyUser);
 
                 proxyUser.setAuthorities(localAuthorities);
 
                 return proxyUser;
-            } catch (LdapDataAccessException e) {
+            } catch (AuthenticationServiceException e) {
                 LOGGER.log(Level.WARNING, "Failed to search LDAP for username=" + username, e);
-                throw new UserMayOrMayNotExistException(e.getMessage(), e);
+                throw new UserMayOrMayNotExistException2(e.getMessage(), e);
             }
         }
     }
 
-    private GrantedAuthority[] retrieveAuthoritiesIfNecessary(
-            final String userFromHeader, final GrantedAuthority[] storedGrants) {
+    private Collection<? extends GrantedAuthority> retrieveAuthoritiesIfNecessary(
+            final String userFromHeader, final Collection<? extends GrantedAuthority> storedGrants) {
 
-        GrantedAuthority[] authorities = storedGrants;
+        Collection<? extends GrantedAuthority> authorities = storedGrants;
 
         if (getLDAPURL() != null) {
 
@@ -896,13 +924,12 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
                                     + check
                                     + "min, will now update the authorities");
 
-                    LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername(userFromHeader);
+                    LdapUserDetails userDetails = (LdapUserDetails) loadUserByUsername2(userFromHeader);
                     authorities = userDetails.getAuthorities();
 
-                    Set<GrantedAuthority> tempLocalAuthorities =
-                            new HashSet<GrantedAuthority>(Arrays.asList(authorities));
-                    tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY);
-                    authorities = tempLocalAuthorities.toArray(new GrantedAuthority[0]);
+                    Set<GrantedAuthority> tempLocalAuthorities = new HashSet<GrantedAuthority>(authorities);
+                    tempLocalAuthorities.add(AUTHENTICATED_AUTHORITY2);
+                    authorities = tempLocalAuthorities;
 
                     authorityUpdateCache.put(userFromHeader, current);
 

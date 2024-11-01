@@ -16,18 +16,19 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
  */
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.util.Assert;
 
 /**
@@ -50,7 +51,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 
     // TODO: replace by a modern collection?
     @CheckForNull
-    protected Hashtable<String, GrantedAuthority[]> authContext;
+    protected Hashtable<String, Collection<? extends GrantedAuthority>> authContext;
 
     /**
      * Constructor for group search scenarios. {@code userRoleAttributes} may still be set as a
@@ -58,7 +59,8 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
      *
      * @param authContext Authentication context. May be {@code null}
      */
-    public DefaultReverseProxyAuthoritiesPopulator(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
+    public DefaultReverseProxyAuthoritiesPopulator(
+            @CheckForNull Hashtable<String, Collection<? extends GrantedAuthority>> authContext) {
         this.authContext = authContext != null ? new Hashtable<>(authContext) : null;
         reverseProxyTemplate = new ReverseProxySearchTemplate();
     }
@@ -81,7 +83,8 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
      * @param userDetails the user who's authorities are required
      * @return the set of roles granted to the user.
      */
-    public final GrantedAuthority[] getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
+    @Override
+    public final Collection<? extends GrantedAuthority> getGrantedAuthorities(ReverseProxyUserDetails userDetails) {
 
         String username = userDetails.getUsername();
 
@@ -97,13 +100,13 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
             roles.add(defaultRole);
         }
 
-        return roles.toArray(new GrantedAuthority[roles.size()]);
+        return roles;
     }
 
     public Set<GrantedAuthority> getGroupMembershipRoles(String username) {
         Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
-        final @CheckForNull GrantedAuthority[] contextAuthorities =
+        final @CheckForNull Collection<? extends GrantedAuthority> contextAuthorities =
                 authContext != null ? authContext.get(username) : null;
 
         SearchTemplate searchTemplate = new UserSearchTemplate(username);
@@ -123,7 +126,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
                 role = role.toUpperCase();
             }
 
-            authorities.add(new GrantedAuthorityImpl(rolePrefix + role));
+            authorities.add(new SimpleGrantedAuthority(rolePrefix + role));
         }
 
         return authorities;
@@ -140,7 +143,7 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
      */
     public void setDefaultRole(String defaultRole) {
         Assert.notNull(defaultRole, "The defaultRole property cannot be set to null");
-        this.defaultRole = new GrantedAuthorityImpl(defaultRole);
+        this.defaultRole = new SimpleGrantedAuthority(defaultRole);
     }
 
     public void setRolePrefix(String rolePrefix) {

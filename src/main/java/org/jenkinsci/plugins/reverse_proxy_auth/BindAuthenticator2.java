@@ -21,12 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.acegisecurity.providers.ldap.authenticator;
+package org.jenkinsci.plugins.reverse_proxy_auth;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.acegisecurity.ldap.InitialDirContextFactory;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
+import org.springframework.ldap.core.DirContextOperations;
+import org.springframework.ldap.core.support.BaseLdapPathContextSource;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.ldap.authentication.BindAuthenticator;
 
 /**
  * {@link BindAuthenticator} with improved diagnostics.
@@ -37,19 +39,19 @@ public class BindAuthenticator2 extends BindAuthenticator {
     /** If we ever had a successful authentication, */
     private boolean hadSuccessfulAuthentication;
 
-    public BindAuthenticator2(InitialDirContextFactory initialDirContextFactory) {
-        super(initialDirContextFactory);
+    public BindAuthenticator2(BaseLdapPathContextSource contextSource) {
+        super(contextSource);
     }
 
     @Override
-    public LdapUserDetails authenticate(String username, String password) {
-        LdapUserDetails user = super.authenticate(username, password);
+    public DirContextOperations authenticate(Authentication authentication) {
+        DirContextOperations operations = super.authenticate(authentication);
         hadSuccessfulAuthentication = true;
-        return user;
+        return operations;
     }
 
     @Override
-    void handleBindException(String userDn, String username, Throwable cause) {
+    protected void handleBindException(String userDn, String username, Throwable cause) {
         LOGGER.log(
                 hadSuccessfulAuthentication ? Level.FINE : Level.WARNING,
                 "Failed to bind to LDAP: userDn" + userDn + "  username=" + username,

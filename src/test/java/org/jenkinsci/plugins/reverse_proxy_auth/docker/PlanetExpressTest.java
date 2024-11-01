@@ -9,13 +9,13 @@ import static org.junit.Assume.assumeTrue;
 import hudson.Functions;
 import hudson.tasks.MailAddressResolver;
 import hudson.util.Secret;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySecurityRealm;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.RealJenkinsRule;
+import org.springframework.security.ldap.userdetails.LdapUserDetails;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 
@@ -97,7 +97,7 @@ public class PlanetExpressTest {
             }
 
             LdapUserDetails zoidberg =
-                    (LdapUserDetails) j.jenkins.getSecurityRealm().loadUserByUsername("zoidberg");
+                    (LdapUserDetails) j.jenkins.getSecurityRealm().loadUserByUsername2("zoidberg");
             assertEquals("cn=John A. Zoidberg,ou=people,dc=planetexpress,dc=com", zoidberg.getDn());
 
             String leelaEmail = MailAddressResolver.resolve(j.jenkins.getUser("leela"));
