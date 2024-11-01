@@ -225,6 +225,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
      * CN e.g. <code>GroupDisplayName={0}</code> here you can configure that this (<code>
      * GroupDisplayName</code>) or another field should be used when looking for a users groups.
      */
+    @SuppressFBWarnings(value = "PA_PUBLIC_PRIMITIVE_ATTRIBUTE", justification = "Preserve the public API")
     public String groupNameAttribute;
 
     /**
