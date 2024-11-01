@@ -271,6 +271,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     public final String customLogOutUrl;
 
     @DataBoundConstructor
+    @SuppressFBWarnings(value = "PA_PUBLIC_PRIMITIVE_ATTRIBUTE", justification = "API compatibility")
     public ReverseProxySecurityRealm(
             String forwardedUser,
             String forwardedEmail,
