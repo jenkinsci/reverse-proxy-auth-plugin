@@ -38,6 +38,13 @@ import hudson.tasks.Mailer.UserProperty;
 import hudson.util.FormValidation;
 import hudson.util.Scrambler;
 import hudson.util.Secret;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.FilterConfig;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -61,13 +68,6 @@ import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
 import org.acegisecurity.Authentication;
@@ -103,7 +103,7 @@ import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPAuthoritiesPopu
 import org.jenkinsci.plugins.reverse_proxy_auth.service.ProxyLDAPUserDetailsService;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 import org.kohsuke.stapler.verb.POST;
 import org.springframework.dao.DataAccessException;
 
@@ -595,7 +595,7 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             public void destroy() {}
         };
         Filter defaultFilter = super.createFilter(filterConfig);
-        return new ChainedServletFilter(defaultFilter, filter);
+        return new ChainedServletFilter2(defaultFilter, filter);
     }
 
     private ForwardedUserData retrieveForwardedData(HttpServletRequest r) {
@@ -619,9 +619,20 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
     }
 
     @Override
-    public String getPostLogOutUrl(StaplerRequest req, Authentication auth) {
+    public String getPostLogOutUrl2(StaplerRequest2 req, org.springframework.security.core.Authentication auth) {
         if (customLogOutUrl == null) {
-            return super.getPostLogOutUrl(req, auth);
+            return super.getPostLogOutUrl2(req, auth);
+        } else {
+            return customLogOutUrl;
+        }
+    }
+
+    @SuppressFBWarnings(value = "BC_UNCONFIRMED_CAST", justification = "Temporary to allow testing by others")
+    public String getPostLogOutUrl2(StaplerRequest2 req, Authentication auth) {
+        if (customLogOutUrl == null) {
+            org.springframework.security.core.Authentication auth6 =
+                    (org.springframework.security.core.Authentication) auth;
+            return super.getPostLogOutUrl2(req, auth6);
         } else {
             return customLogOutUrl;
         }

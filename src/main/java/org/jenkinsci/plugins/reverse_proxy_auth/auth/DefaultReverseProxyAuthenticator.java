@@ -41,7 +41,7 @@ public class DefaultReverseProxyAuthenticator
     }
 
     public void setMessageSource(@NonNull MessageSource messageSource) {
-        Assert.notNull("Message source must not be null");
+        Assert.notNull(messageSource, "Message source must not be null");
         messages = new MessageSourceAccessor(messageSource);
     }
 
