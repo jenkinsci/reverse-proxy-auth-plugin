@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitsDisabled",
+    "schedule:daily"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "src/test/java/org/jenkinsci/plugins/reverse_proxy_auth/docker/PlanetExpressTest.java"
+      ],
+      "matchStrings": [
+        ".* TEST_IMAGE =\n\\s*\"(?<repo>.*?):(?<currentValue>.*?)@(?<currentDigest>sha256:.*?)\";\n"
+      ],
+      "depNameTemplate": "{{{repo}}}",
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "rebaseWhen": "conflicted",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ]
+}
