@@ -1,20 +1,23 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.service;
 
-import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.UserMayOrMayNotExistException2;
+import java.util.Collection;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.BasicAttributes;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.ldap.LdapDataAccessException;
-import org.acegisecurity.ldap.LdapUserSearch;
-import org.acegisecurity.providers.ldap.LdapAuthoritiesPopulator;
-import org.acegisecurity.userdetails.UserDetailsService;
-import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.acegisecurity.userdetails.ldap.LdapUserDetails;
-import org.acegisecurity.userdetails.ldap.LdapUserDetailsImpl;
+import jenkins.util.SetContextClassLoader;
 import org.apache.commons.collections.map.LRUMap;
 import org.springframework.dao.DataAccessException;
+import org.springframework.ldap.core.DirContextOperations;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.ldap.search.LdapUserSearch;
+import org.springframework.security.ldap.userdetails.LdapAuthoritiesPopulator;
+import org.springframework.security.ldap.userdetails.LdapUserDetailsImpl;
 
 public class ProxyLDAPUserDetailsService implements UserDetailsService {
 
@@ -45,37 +48,36 @@ public class ProxyLDAPUserDetailsService implements UserDetailsService {
      * @throws UsernameNotFoundException if user not found
      * @throws DataAccessException on data access exception
      */
-    public LdapUserDetails loadUserByUsername(String username) throws UsernameNotFoundException, DataAccessException {
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         int retries = 0;
         while (retries < RETRY_TIMES) {
-            try {
-                LdapUserDetails ldapUser = ldapSearch.searchForUser(username);
+            try (SetContextClassLoader sccl = new SetContextClassLoader(ProxyLDAPUserDetailsService.class)) {
+                DirContextOperations ldapUser = ldapSearch.searchForUser(username);
                 // LdapUserSearch does not populate granted authorities (group search).
                 // Add those, as done in LdapAuthenticationProvider.createUserDetails().
-                if (ldapUser != null) {
-                    LdapUserDetailsImpl.Essence user = new LdapUserDetailsImpl.Essence(ldapUser);
+                LdapUserDetailsImpl.Essence user = new LdapUserDetailsImpl.Essence(ldapUser);
+                user.setUsername(username);
+                user.setDn(ldapUser.getNameInNamespace()); // otherwise the DN is missing the DC
 
-                    // intern attributes
-                    Attributes v = ldapUser.getAttributes();
-                    if (v instanceof BasicAttributes) { // BasicAttributes.equals is what makes the interning possible
-                        synchronized (attributesCache) {
-                            Attributes vv = (Attributes) attributesCache.get(v);
-                            if (vv == null) {
-                                attributesCache.put(v, vv = v);
-                            }
-                            user.setAttributes(vv);
-                        }
+                // intern attributes
+                Attributes v = ldapUser.getAttributes();
+                synchronized (attributesCache) {
+                    Attributes vv = (Attributes) attributesCache.get(v);
+                    if (vv == null) {
+                        attributesCache.put(v, v);
+                    } else {
+                        v = vv;
                     }
-
-                    GrantedAuthority[] extraAuthorities = authoritiesPopulator.getGrantedAuthorities(ldapUser);
-                    for (GrantedAuthority extraAuthority : extraAuthorities) {
-                        user.addAuthority(extraAuthority);
-                    }
-                    ldapUser = user.createUserDetails();
                 }
 
-                return ldapUser;
-            } catch (LdapDataAccessException ldapEx) {
+                Collection<? extends GrantedAuthority> extraAuthorities =
+                        authoritiesPopulator.getGrantedAuthorities(ldapUser, username);
+                for (GrantedAuthority extraAuthority : extraAuthorities) {
+                    user.addAuthority(extraAuthority);
+                }
+                return user.createUserDetails();
+            } catch (AuthenticationServiceException ldapEx) {
                 long waitTime = Math.min(getWaitTimeExp(retries), MAX_WAIT_INTERVAL);
                 String msg = String.format(
                         "Failed to search LDAP for username %s, will retry after waiting for %d" + " milliseconds",
@@ -89,7 +91,7 @@ public class ProxyLDAPUserDetailsService implements UserDetailsService {
                 retries++;
             }
         }
-        throw new UserMayOrMayNotExistException("Failed to search LDAP for user after all the retries.");
+        throw new UserMayOrMayNotExistException2("Failed to search LDAP for user after all the retries.");
     }
 
     /*

@@ -17,13 +17,14 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import hudson.security.SecurityRealm;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Set;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.GrantedAuthorityImpl;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * @author Wilder rodrigues (wrodrigues@schuberphilis.com)
@@ -33,7 +34,8 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
     String rolePrefix = "ROLE_";
     boolean convertToUpperCase = true;
 
-    public ReverseProxyAuthoritiesPopulatorImpl(@CheckForNull Hashtable<String, GrantedAuthority[]> authContext) {
+    public ReverseProxyAuthoritiesPopulatorImpl(
+            @CheckForNull Hashtable<String, Collection<? extends GrantedAuthority>> authContext) {
         super(authContext);
 
         super.setRolePrefix("");
@@ -42,7 +44,7 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
 
     @Override
     protected Set<GrantedAuthority> getAdditionalRoles(ReverseProxyUserDetails proxyUser) {
-        return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY);
+        return Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY2);
     }
 
     @Override
@@ -78,7 +80,7 @@ public final class ReverseProxyAuthoritiesPopulatorImpl extends DefaultReversePr
             if (convertToUpperCase) {
                 role = role.toUpperCase();
             }
-            groupRoles.add(new GrantedAuthorityImpl(rolePrefix + role));
+            groupRoles.add(new SimpleGrantedAuthority(rolePrefix + role));
         }
 
         return groupRoles;
