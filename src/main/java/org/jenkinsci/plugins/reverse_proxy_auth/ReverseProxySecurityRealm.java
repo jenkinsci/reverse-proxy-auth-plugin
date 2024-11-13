@@ -785,8 +785,10 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             // TODO: obtain a DN instead so that we can obtain multiple attributes later
             String searchBase = groupSearchBase != null ? groupSearchBase : "";
             String searchFilter = groupSearchFilter != null ? groupSearchFilter : GROUP_SEARCH;
-            groups = ldapTemplate.searchForSingleAttributeValues(
-                    searchBase, searchFilter, new String[] {groupname}, "cn");
+            try (SetContextClassLoader sccl = new SetContextClassLoader(ReverseProxySecurityRealm.class)) {
+                groups = ldapTemplate.searchForSingleAttributeValues(
+                        searchBase, searchFilter, new String[] {groupname}, "cn");
+            }
         } else {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             Collection<? extends GrantedAuthority> authorities =
