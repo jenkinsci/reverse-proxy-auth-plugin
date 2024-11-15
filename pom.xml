@@ -9,7 +9,7 @@
   </parent>
 
   <artifactId>reverse-proxy-auth-plugin</artifactId>
-  <version>${revision}${changelist}</version>
+  <version>${changelist}</version>
   <packaging>hpi</packaging>
 
   <name>Jenkins Reverse Proxy Auth Plugin</name>
@@ -43,8 +43,7 @@
     <url>https://github.com/${gitHubRepo}</url>
   </scm>
   <properties>
-    <revision>1.8.1</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}</gitHubRepo>
     <jenkins.baseline>2.479</jenkins.baseline>
     <jenkins.version>${jenkins.baseline}.1</jenkins.version>
