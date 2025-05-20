@@ -1,24 +1,27 @@
 package org.jenkinsci.plugins.reverse_proxy_auth.data;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import hudson.model.User;
 import hudson.tasks.Mailer;
 import jenkins.model.Jenkins;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.MockAuthorizationStrategy;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
-public class ForwardedUserDataTest {
+@WithJenkins
+class ForwardedUserDataTest {
+
     private ForwardedUserData forwardedUserData;
     private User user;
 
-    @Rule
-    public JenkinsRule j = new JenkinsRule();
+    private JenkinsRule j;
 
-    @Before
-    public void setup() {
+    @BeforeEach
+    void setUp(JenkinsRule rule) {
+        j = rule;
         j.jenkins.setAuthorizationStrategy(
                 new MockAuthorizationStrategy().grant(Jenkins.READ).everywhere().to("Max Mustermann"));
 
@@ -27,24 +30,24 @@ public class ForwardedUserDataTest {
     }
 
     @Test
-    public void basicForwardedUserData() {
+    void basicForwardedUserData() {
         forwardedUserData.setEmail("max.mustermann@example.com");
-        Assert.assertEquals("max.mustermann@example.com", forwardedUserData.getEmail());
+        assertEquals("max.mustermann@example.com", forwardedUserData.getEmail());
 
         forwardedUserData.setDisplayName("Max Mustermann");
-        Assert.assertEquals("Max Mustermann", forwardedUserData.getDisplayName());
+        assertEquals("Max Mustermann", forwardedUserData.getDisplayName());
     }
 
     @Test
-    public void testUpdate() {
+    void testUpdate() {
         user.setFullName("John Doe");
         forwardedUserData.setDisplayName("Max Mustermann");
         forwardedUserData.update(user);
-        Assert.assertEquals("Max Mustermann", user.getFullName());
+        assertEquals("Max Mustermann", user.getFullName());
 
         forwardedUserData.setEmail("max.mustermann@example.com");
         forwardedUserData.update(user);
         Mailer.UserProperty emailProp = user.getProperty(Mailer.UserProperty.class);
-        Assert.assertEquals("max.mustermann@example.com", emailProp.getAddress());
+        assertEquals("max.mustermann@example.com", emailProp.getAddress());
     }
 }

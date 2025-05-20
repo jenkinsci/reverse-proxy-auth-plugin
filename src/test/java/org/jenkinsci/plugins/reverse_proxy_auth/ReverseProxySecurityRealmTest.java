@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import hudson.security.SecurityRealm;
 import hudson.util.Secret;
@@ -12,57 +13,50 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.Callable;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 import org.jvnet.hudson.test.recipes.LocalData;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 
-public class ReverseProxySecurityRealmTest {
-    @Rule
-    public final JenkinsRule jenkinsRule = new JenkinsRule();
+@WithJenkins
+class ReverseProxySecurityRealmTest {
 
-    private Jenkins jenkins;
+    private JenkinsRule j;
 
-    @Before
-    public void setUp() {
-        jenkins = jenkinsRule.jenkins;
+    @BeforeEach
+    void setUp(JenkinsRule rule) {
+        j = rule;
     }
 
     @Test
-    public void basicGetUserDetails() {
+    void basicGetUserDetails() {
         final ReverseProxySecurityRealm realm = createBasicRealm();
         final UserDetails userDetails = realm.loadUserByUsername2("test@example.com");
-        Assert.assertEquals("test@example.com", userDetails.getUsername());
+        assertEquals("test@example.com", userDetails.getUsername());
     }
 
     @Test
     @Issue("JENKINS-49274")
-    public void basicAuthenticate() throws Exception {
+    void basicAuthenticate() throws Exception {
         final ReverseProxySecurityRealm realm = createBasicRealm();
-        jenkins.setSecurityRealm(realm);
+        j.jenkins.setSecurityRealm(realm);
 
-        final JenkinsRule.WebClient client = jenkinsRule.createWebClient();
-        client.addRequestHeader(realm.getForwardedUser(), "test@example.com");
-        final Authentication authentication = client.executeOnServer(new Callable<Authentication>() {
-            @Override
-            public Authentication call() {
-                return Jenkins.getAuthentication2();
-            }
-        });
-        Assert.assertEquals(
-                "Authentication should match",
-                new UsernamePasswordAuthenticationToken(
-                        "test@example.com", "", Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY2)),
-                authentication);
+        try (JenkinsRule.WebClient client = j.createWebClient()) {
+            client.addRequestHeader(realm.getForwardedUser(), "test@example.com");
+            final Authentication authentication = client.executeOnServer(Jenkins::getAuthentication2);
+            assertEquals(
+                    new UsernamePasswordAuthenticationToken(
+                            "test@example.com", "", Collections.singleton(SecurityRealm.AUTHENTICATED_AUTHORITY2)),
+                    authentication,
+                    "Authentication should match");
+        }
     }
 
     private ReverseProxySecurityRealm createBasicRealm() {
@@ -94,8 +88,8 @@ public class ReverseProxySecurityRealmTest {
 
     @Test
     @LocalData
-    public void testPasswordMigration() throws IOException {
-        final SecurityRealm securityRealm = jenkinsRule.jenkins.getSecurityRealm();
+    void testPasswordMigration() throws IOException {
+        final SecurityRealm securityRealm = j.jenkins.getSecurityRealm();
         assertThat(securityRealm, instanceOf(ReverseProxySecurityRealm.class));
         ReverseProxySecurityRealm reverseProxySecurityRealm = (ReverseProxySecurityRealm) securityRealm;
         assertThat(reverseProxySecurityRealm.getManagerPassword().getPlainText(), is("theManagerPassw0rd"));
