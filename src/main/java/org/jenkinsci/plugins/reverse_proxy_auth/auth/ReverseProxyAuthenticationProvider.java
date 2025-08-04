@@ -17,8 +17,8 @@ package org.jenkinsci.plugins.reverse_proxy_auth.auth;
 
 import java.util.Collection;
 import java.util.Collections;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jenkinsci.plugins.reverse_proxy_auth.model.ReverseProxyUserDetails;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -35,7 +35,7 @@ import org.springframework.util.StringUtils;
  * @author Wilder Rodrigues (wrodrigues@schubergphilis.com)
  */
 public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthenticationProvider {
-    private static final Log logger = LogFactory.getLog(ReverseProxyAuthenticationProvider.class);
+    private static final Logger logger = Logger.getLogger(ReverseProxyAuthenticationProvider.class.getName());
 
     private ReverseProxyAuthenticator authenticator;
     private ReverseProxyAuthoritiesPopulator authoritiesPopulator;
@@ -132,8 +132,8 @@ public class ReverseProxyAuthenticationProvider extends AbstractUserDetailsAuthe
             throw new BadCredentialsException("Empty Username");
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("Retrieving user " + username);
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("Retrieving user " + username);
         }
 
         String password = (String) authentication.getCredentials();

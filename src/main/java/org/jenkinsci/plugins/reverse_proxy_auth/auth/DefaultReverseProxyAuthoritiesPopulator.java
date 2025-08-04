@@ -21,8 +21,8 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Set;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jenkinsci.plugins.reverse_proxy_auth.ReverseProxySearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.SearchTemplate;
 import org.jenkinsci.plugins.reverse_proxy_auth.data.UserSearchTemplate;
@@ -36,7 +36,7 @@ import org.springframework.util.Assert;
  */
 public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuthoritiesPopulator {
 
-    private static final Log logger = LogFactory.getLog(DefaultReverseProxyAuthoritiesPopulator.class);
+    private static final Logger logger = Logger.getLogger(DefaultReverseProxyAuthoritiesPopulator.class.getName());
 
     /** A default role which will be assigned to all authenticated users if set */
     private GrantedAuthority defaultRole;
@@ -113,8 +113,8 @@ public class DefaultReverseProxyAuthoritiesPopulator implements ReverseProxyAuth
 
         Set<String> userRoles = reverseProxyTemplate.searchForSingleAttributeValues(searchTemplate, contextAuthorities);
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("Roles from search: " + userRoles);
+        if (logger.isLoggable(Level.FINE)) {
+            logger.fine("Roles from search: " + userRoles);
         }
 
         Iterator<String> it = userRoles.iterator();
