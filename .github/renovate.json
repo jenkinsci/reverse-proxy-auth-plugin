@@ -1,12 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":semanticCommitsDisabled",
+    "github>jenkinsci/renovate-config",
     "schedule:daily"
-  ],
-  "labels": [
-    "dependencies"
   ],
   "customManagers": [
     {
@@ -21,7 +17,6 @@
       "datasourceTemplate": "docker"
     }
   ],
-  "rebaseWhen": "conflicted",
   "ignorePaths": [
     "**/node_modules/**",
     "**/bower_components/**",
