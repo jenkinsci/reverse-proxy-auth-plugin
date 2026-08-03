@@ -72,7 +72,6 @@ import javax.naming.directory.InitialDirContext;
 import jenkins.model.Jenkins;
 import jenkins.security.ApiTokenProperty;
 import jenkins.util.SetContextClassLoader;
-import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.DefaultReverseProxyAuthenticator;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthenticationProvider;
 import org.jenkinsci.plugins.reverse_proxy_auth.auth.ReverseProxyAuthoritiesPopulator;
@@ -304,19 +303,19 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
         this.forwardedDisplayName = fixEmptyAndTrim(forwardedDisplayName);
 
         this.headerGroups = headerGroups;
-        if (!StringUtils.isBlank(headerGroupsDelimiter)) {
+        if (headerGroupsDelimiter != null && !headerGroupsDelimiter.isBlank()) {
             this.headerGroupsDelimiter = headerGroupsDelimiter.trim();
         } else {
             this.headerGroupsDelimiter = "|";
         }
 
-        if (!StringUtils.isBlank(customLogInUrl)) {
+        if (customLogInUrl != null && !customLogInUrl.isBlank()) {
             this.customLogInUrl = customLogInUrl;
         } else {
             this.customLogInUrl = null;
         }
 
-        if (!StringUtils.isBlank(customLogOutUrl)) {
+        if (customLogOutUrl != null && !customLogOutUrl.isBlank()) {
             this.customLogOutUrl = customLogOutUrl;
         } else {
             this.customLogOutUrl = null;
@@ -741,24 +740,26 @@ public class ReverseProxySecurityRealm extends SecurityRealm {
             LOGGER.log(Level.FINEST, "getAttributes is null");
         } else {
             hudson.model.User u = hudson.model.User.get(d.getUsername());
-            if (!StringUtils.isBlank(displayNameLdapAttribute)) {
+            if (displayNameLdapAttribute != null && !displayNameLdapAttribute.isBlank()) {
                 LOGGER.log(Level.FINEST, "Getting user details from LDAP attributes");
                 try {
                     Attribute attribute = getAttributes(d, ldapUserSearch).get(displayNameLdapAttribute);
                     String displayName = attribute == null ? null : (String) attribute.get();
                     LOGGER.log(Level.FINEST, "displayName is " + displayName);
-                    if (StringUtils.isNotBlank(displayName)) {
+                    if (displayName != null && !displayName.isBlank()) {
                         u.setFullName(displayName);
                     }
                 } catch (NamingException e) {
                     LOGGER.log(Level.FINEST, "Could not retrieve display name attribute", e);
                 }
             }
-            if (!disableLdapEmailResolver && !StringUtils.isBlank(emailAddressLdapAttribute)) {
+            if (!disableLdapEmailResolver
+                    && emailAddressLdapAttribute != null
+                    && !emailAddressLdapAttribute.isBlank()) {
                 try {
                     Attribute attribute = getAttributes(d, ldapUserSearch).get(emailAddressLdapAttribute);
                     String mailAddress = attribute == null ? null : (String) attribute.get();
-                    if (StringUtils.isNotBlank(mailAddress)) {
+                    if (mailAddress != null && !mailAddress.isBlank()) {
                         LOGGER.log(Level.FINEST, "mailAddress is " + mailAddress);
                         UserProperty existing = u.getProperty(UserProperty.class);
                         if (existing == null || !existing.hasExplicitlyConfiguredAddress()) {
