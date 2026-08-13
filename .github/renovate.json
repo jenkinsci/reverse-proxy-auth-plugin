@@ -7,8 +7,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "src/test/java/org/jenkinsci/plugins/reverse_proxy_auth/docker/PlanetExpressTest.java"
+      "managerFilePatterns": [
+        "/src/test/java/org/jenkinsci/plugins/reverse_proxy_auth/docker/PlanetExpressTest.java/"
       ],
       "matchStrings": [
         ".* TEST_IMAGE =\n\\s*\"(?<repo>.*?):(?<currentValue>.*?)@(?<currentDigest>sha256:.*?)\";\n"
